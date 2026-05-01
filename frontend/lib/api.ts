@@ -145,6 +145,8 @@ export interface VoteResponse {
   candidate_id: number | null;
   election_id: number | null;
   timestamp: string | null;
+  receipt_code: string | null;
+  ledger_hash: string | null;
 }
 
 export interface RankedCandidate {
@@ -173,6 +175,34 @@ export function castVote(candidate_id: number, election_id: number): Promise<Vot
     method: "POST",
     body: JSON.stringify({ candidate_id, election_id }),
   });
+}
+
+export interface VoteVerificationResponse {
+  receipt_code:  string;
+  election_name: string;
+  election_type: string | null;
+  recorded_at:   string;
+  vote_status:   string;
+  ledger_hash:   string;
+}
+
+export function verifyVote(receiptCode: string): Promise<VoteVerificationResponse> {
+  return request<VoteVerificationResponse>(`/votes/verify/${encodeURIComponent(receiptCode.trim())}`);
+}
+
+export interface VoteHistoryItem {
+  vote_id:       number;
+  election_id:   number;
+  election_name: string;
+  election_type: string | null;
+  recorded_at:   string | null;
+  receipt_code:  string | null;
+  ledger_hash:   string | null;
+  vote_status:   string;
+}
+
+export function getVotingHistory(): Promise<VoteHistoryItem[]> {
+  return request<VoteHistoryItem[]>("/votes/history");
 }
 
 export function getResults(electionId: number): Promise<ResultsResponse> {
@@ -229,20 +259,13 @@ export interface ElectionCreatePayload {
   type: string;
   start_date: string;
   end_date: string;
-  status?: string;
+  // status is omitted — backend always creates elections as "upcoming"
 }
 
 export function createElection(data: ElectionCreatePayload): Promise<ElectionResponse> {
   return request<ElectionResponse>("/elections/", {
     method: "POST",
     body: JSON.stringify(data),
-  });
-}
-
-export function updateElectionStatus(id: number, status: string): Promise<ElectionResponse> {
-  return request<ElectionResponse>(`/elections/${id}/status`, {
-    method: "PATCH",
-    body: JSON.stringify({ status }),
   });
 }
 

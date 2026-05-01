@@ -54,6 +54,24 @@ class CandidateNotFoundException(Exception):
         super().__init__(f"Candidate {candidate_id} not found")
 
 
+class InvalidElectionDatesException(Exception):
+    """
+    Raised when creating an election with logically invalid dates:
+      - end_date <= start_date
+      - end_date is already in the past
+    """
+    def __init__(self, reason: str):
+        self.reason = reason
+        super().__init__(f"Invalid election dates: {reason}")
+
+
+class VoteNotFoundException(Exception):
+    """Raised when a receipt code does not match any vote in the DB."""
+    def __init__(self, receipt_code: str):
+        self.receipt_code = receipt_code
+        super().__init__(f"No vote found for receipt '{receipt_code}'")
+
+
 # ──────────────────────────────────────────────
 # FastAPI exception handlers
 # ──────────────────────────────────────────────
@@ -83,4 +101,12 @@ async def duplicate_entry_handler(request: Request, exc: DuplicateEntryException
 
 
 async def candidate_not_found_handler(request: Request, exc: CandidateNotFoundException):
+    return JSONResponse(status_code=404, content={"detail": str(exc)})
+
+
+async def invalid_election_dates_handler(request: Request, exc: InvalidElectionDatesException):
+    return JSONResponse(status_code=422, content={"detail": str(exc)})
+
+
+async def vote_not_found_handler(request: Request, exc: VoteNotFoundException):
     return JSONResponse(status_code=404, content={"detail": str(exc)})

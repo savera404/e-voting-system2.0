@@ -27,16 +27,29 @@ class VoteRepository:
             .first()
         )
 
+    def get_all_by_voter(self, db: Session, voter_id: int) -> List[Vote]:
+        """Return all votes cast by a specific voter, newest first."""
+        return (
+            db.query(Vote)
+            .filter(Vote.voter_id == voter_id)
+            .order_by(Vote.timestamp.desc())
+            .all()
+        )
+
+    def get_by_receipt_code(self, db: Session, receipt_code: str) -> Optional[Vote]:
+        """Look up a vote by its cryptographic receipt code (case-insensitive)."""
+        return (
+            db.query(Vote)
+            .filter(func.lower(Vote.receipt_code) == receipt_code.lower())
+            .first()
+        )
+
     def get_by_election(self, db: Session, election_id: int) -> List[Vote]:
         return db.query(Vote).filter(Vote.election_id == election_id).all()
 
     def get_vote_counts_for_election(
         self, db: Session, election_id: int
     ) -> List[Dict[str, Any]]:
-        """
-        Returns a list of dicts:
-        [{"candidate_id": .., "name": .., "party": .., "votes": ..}, ...]
-        """
         rows = (
             db.query(
                 Candidate.id.label("candidate_id"),

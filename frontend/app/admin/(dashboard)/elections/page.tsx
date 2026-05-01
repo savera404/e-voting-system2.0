@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from "react";
 import {
-  listElections, createElection, updateElectionStatus, deleteElection,
+  listElections, createElection, deleteElection,
   type ElectionResponse,
 } from "../../../../lib/api";
 
@@ -11,11 +11,29 @@ const STATUS_COLORS: Record<string, string> = {
   completed: "bg-gray-700/40 text-gray-400 border-gray-600/40",
 };
 
+const STATUS_LABELS: Record<string, string> = {
+  upcoming:  "Upcoming",
+  active:    "Active",
+  completed: "Completed",
+};
+
 const FIELD = "w-full px-4 py-2.5 rounded-xl bg-[#0f1f17] border border-[#2a4a36] text-white text-sm placeholder-gray-600 outline-none focus:border-[#22c55e]/60 focus:ring-2 focus:ring-[#22c55e]/10 transition-all";
 const LABEL = "block text-xs font-semibold text-gray-400 mb-1";
 
-type FormState = { name: string; type: string; start_date: string; end_date: string; status: string };
-const EMPTY: FormState = { name: "", type: "federal", start_date: "", end_date: "", status: "upcoming" };
+type FormState = { name: string; type: string; start_date: string; end_date: string };
+const EMPTY: FormState = { name: "", type: "federal", start_date: "", end_date: "" };
+
+/** Returns today's datetime as a datetime-local string (YYYY-MM-DDTHH:mm). */
+function nowLocal(): string {
+  const d = new Date();
+  d.setSeconds(0, 0);
+  return d.toISOString().slice(0, 16);
+}
+
+/** Parse an API date string as UTC (appends Z if missing). */
+function parseUtc(s: string): Date {
+  return new Date((s.endsWith("Z") || s.includes("+")) ? s : s + "Z");
+}
 
 export default function AdminElectionsPage() {
   const [elections, setElections] = useState<ElectionResponse[]>([]);
@@ -42,12 +60,21 @@ export default function AdminElectionsPage() {
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const start = new Date(form.start_date);
+    const end   = new Date(form.end_date);
+    const now   = new Date();
+
+    if (end <= start) { flash("End date must be after start date.", "err"); return; }
+    if (end <= now)   { flash("End date must be in the future.", "err");    return; }
+
     setSubmitting(true);
     try {
       await createElection({
-        ...form,
-        start_date: new Date(form.start_date).toISOString(),
-        end_date:   new Date(form.end_date).toISOString(),
+        name:       form.name,
+        type:       form.type,
+        start_date: start.toISOString(),
+        end_date:   end.toISOString(),
       });
       setForm(EMPTY);
       await load();
@@ -55,14 +82,6 @@ export default function AdminElectionsPage() {
     } catch (err: unknown) {
       flash(err instanceof Error ? err.message : "Failed to create election.", "err");
     } finally { setSubmitting(false); }
-  };
-
-  const handleStatusChange = async (id: number, status: string) => {
-    try {
-      await updateElectionStatus(id, status);
-      setElections(prev => prev.map(e => e.id === id ? { ...e, status } : e));
-      flash("Status updated.", "ok");
-    } catch { flash("Failed to update status.", "err"); }
   };
 
   const handleDelete = async (id: number) => {
@@ -74,13 +93,21 @@ export default function AdminElectionsPage() {
     finally { setDeleteId(null); }
   };
 
-  const fmt = (d?: string | null) => d ? new Date(d).toLocaleDateString("en-PK", { day: "numeric", month: "short", year: "numeric" }) : "—";
+  const fmt = (d?: string | null) => {
+    if (!d) return "—";
+    return parseUtc(d).toLocaleString("en-PK", {
+      day: "numeric", month: "short", year: "numeric",
+      hour: "2-digit", minute: "2-digit",
+    });
+  };
+
+  const minEnd = form.start_date || nowLocal();
 
   return (
     <div className="space-y-8">
       <div>
         <h1 className="text-2xl font-black text-white">Elections</h1>
-        <p className="text-sm text-gray-400 mt-0.5">Create, manage and delete elections.</p>
+        <p className="text-sm text-gray-400 mt-0.5">Create and manage elections. Statuses update automatically based on dates.</p>
       </div>
 
       {(error || success) && (
@@ -89,13 +116,34 @@ export default function AdminElectionsPage() {
         </div>
       )}
 
+      {/* ── Status lifecycle info ── */}
+      <div className="bg-[#0f1f17] border border-[#2a4a36] rounded-2xl px-5 py-4 flex flex-wrap gap-4 text-xs text-gray-400">
+        <span className="flex items-center gap-2">
+          <span className="px-2 py-0.5 rounded-md border bg-blue-900/30 text-blue-400 border-blue-700/40 font-semibold">Upcoming</span>
+          → created, waiting for start date
+        </span>
+        <span className="text-gray-600 hidden sm:inline">•</span>
+        <span className="flex items-center gap-2">
+          <span className="px-2 py-0.5 rounded-md border bg-green-900/30 text-green-400 border-green-700/40 font-semibold">Active</span>
+          → start date reached, voting open
+        </span>
+        <span className="text-gray-600 hidden sm:inline">•</span>
+        <span className="flex items-center gap-2">
+          <span className="px-2 py-0.5 rounded-md border bg-gray-700/40 text-gray-400 border-gray-600/40 font-semibold">Completed</span>
+          → end date reached, voting closed
+        </span>
+      </div>
+
       {/* ── Create Form ── */}
       <div className="bg-[#162b1e] border border-[#2a4a36] rounded-2xl p-6">
-        <h2 className="text-base font-bold text-white mb-5 flex items-center gap-2">
+        <h2 className="text-base font-bold text-white mb-1 flex items-center gap-2">
           <svg width="16" height="16" fill="none" stroke="#22c55e" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
           New Election
         </h2>
-        <form onSubmit={handleCreate} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <p className="text-xs text-gray-500 mb-5">
+          Elections start as <span className="text-blue-400 font-semibold">Upcoming</span> and transition automatically. End date must be in the future.
+        </p>
+        <form onSubmit={handleCreate} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="lg:col-span-2">
             <label className={LABEL}>Election Name *</label>
             <input className={FIELD} placeholder="e.g. General Election 2025" required
@@ -109,25 +157,26 @@ export default function AdminElectionsPage() {
               <option value="local">Local</option>
             </select>
           </div>
+          <div className="flex items-end">
+            <div className="w-full px-4 py-2.5 rounded-xl border border-blue-700/40 bg-blue-900/10 text-blue-400 text-sm font-semibold">
+              Status: Upcoming
+            </div>
+          </div>
           <div>
             <label className={LABEL}>Start Date *</label>
             <input type="datetime-local" className={FIELD} required
-              value={form.start_date} onChange={e => setForm(p => ({ ...p, start_date: e.target.value }))} />
+              min={nowLocal()}
+              value={form.start_date}
+              onChange={e => setForm(p => ({ ...p, start_date: e.target.value }))} />
           </div>
           <div>
             <label className={LABEL}>End Date *</label>
             <input type="datetime-local" className={FIELD} required
-              value={form.end_date} onChange={e => setForm(p => ({ ...p, end_date: e.target.value }))} />
+              min={minEnd}
+              value={form.end_date}
+              onChange={e => setForm(p => ({ ...p, end_date: e.target.value }))} />
           </div>
-          <div>
-            <label className={LABEL}>Initial Status</label>
-            <select className={FIELD} value={form.status} onChange={e => setForm(p => ({ ...p, status: e.target.value }))}>
-              <option value="upcoming">Upcoming</option>
-              <option value="active">Active</option>
-              <option value="completed">Completed</option>
-            </select>
-          </div>
-          <div className="sm:col-span-2 lg:col-span-3 flex justify-end">
+          <div className="sm:col-span-2 lg:col-span-2 flex items-end justify-end">
             <button type="submit" disabled={submitting}
               className="px-6 py-2.5 bg-[#22c55e] text-[#0a1a10] font-bold text-sm rounded-xl
                 hover:bg-[#16a34a] transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-[#22c55e]/20">
@@ -172,16 +221,9 @@ export default function AdminElectionsPage() {
                     <td className="px-6 py-4 text-gray-300">{fmt(el.start_date)}</td>
                     <td className="px-6 py-4 text-gray-300">{fmt(el.end_date)}</td>
                     <td className="px-6 py-4">
-                      <select
-                        value={el.status ?? "upcoming"}
-                        onChange={e => handleStatusChange(el.id, e.target.value)}
-                        className={`text-xs font-semibold px-2.5 py-1 rounded-lg border bg-transparent cursor-pointer outline-none
-                          ${STATUS_COLORS[el.status ?? "upcoming"] ?? STATUS_COLORS.upcoming}`}
-                      >
-                        <option value="upcoming"  className="bg-[#162b1e] text-white">Upcoming</option>
-                        <option value="active"    className="bg-[#162b1e] text-white">Active</option>
-                        <option value="completed" className="bg-[#162b1e] text-white">Completed</option>
-                      </select>
+                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-lg border ${STATUS_COLORS[el.status ?? "upcoming"] ?? STATUS_COLORS.upcoming}`}>
+                        {STATUS_LABELS[el.status ?? "upcoming"] ?? el.status}
+                      </span>
                     </td>
                     <td className="px-6 py-4 text-right">
                       <button onClick={() => setDeleteId(el.id)}

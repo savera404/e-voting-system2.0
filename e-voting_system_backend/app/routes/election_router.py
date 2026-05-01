@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.services.election_service import ElectionService
-from app.schemas.election_schema import ElectionCreate, ElectionStatusUpdate
+from app.schemas.election_schema import ElectionCreate
 from app.patterns.observer.election_observer import ElectionEventManager, AuditObserver
 
 router = APIRouter()
@@ -28,7 +28,6 @@ def get_audit_trail():
     Returns every election status-change event since the server started.
     """
     manager = ElectionEventManager.get_instance()
-    # Find the AuditObserver that was registered at startup
     audit_observer = next(
         (obs for obs in manager._observers if isinstance(obs, AuditObserver)),
         None,
@@ -41,11 +40,6 @@ def get_audit_trail():
 @router.get("/{election_id}")
 def get_election(election_id: int, db: Session = Depends(get_db)):
     return service.get_election(db, election_id)
-
-
-@router.patch("/{election_id}/status")
-def update_status(election_id: int, body: ElectionStatusUpdate, db: Session = Depends(get_db)):
-    return service.update_status(db, election_id, body.status)
 
 
 @router.delete("/{election_id}")

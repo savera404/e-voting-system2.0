@@ -7,10 +7,12 @@ or raises an exception that aborts the chain.
 
 Handlers (in order)
 --------------------
-1. ElectionActiveHandler       – Is the election currently active?
-2. VoterEligibilityHandler     – Has the voter already cast a vote?
-3. ConstituencyMatchHandler    – Does the voter's constituency match the candidate's?
-4. CandidateExistsHandler      – Does the chosen candidate belong to this election?
+1. ElectionExistsHandler       – Does the election exist?
+2. ElectionEndDateHandler      – Has the election's end_date already passed?
+3. ElectionActiveHandler       – Is the election currently "active"?
+4. VoterEligibilityHandler     – Has the voter already cast a vote?
+5. CandidateExistsHandler      – Does the chosen candidate belong to this election?
+6. ConstituencyMatchHandler    – Does the voter's constituency match the candidate's?
 
 Usage
 -----
@@ -20,6 +22,7 @@ Usage
 
 from __future__ import annotations
 from abc import ABC, abstractmethod
+from datetime import datetime
 from typing import Optional
 
 from sqlalchemy.orm import Session
@@ -36,7 +39,6 @@ from app.models.candidate import Candidate
 
 
 # ── Request context ────────────────────────────────────────────────────────
-#This is just a container that carries all the information the chain needs. Instead of passing 4+ separate arguments to every handler, you pack everything into one VoteContext object and pass that down the chain.
 
 class VoteContext:
     """Carries everything the handlers need; passed down the chain."""
@@ -60,16 +62,6 @@ class VoteContext:
 
 # ── Abstract Handler ───────────────────────────────────────────────────────
 
-
-"""
-Every handler in the chain inherits from this. The key method is handle():
-
-First runs its own check()
-If check passes → calls the next handler's handle()
-If check fails → throws an exception, chain stops
-
-set_next() returns the handler you just set, which allows neat chaining syntax when building the chain.
-"""
 class VoteHandler(ABC):
     def __init__(self) -> None:
         self._next: Optional["VoteHandler"] = None
@@ -96,6 +88,28 @@ class ElectionExistsHandler(VoteHandler):
         if election is None:
             raise ElectionNotFoundException(ctx.election_id)
         ctx.election = election   # cache for downstream handlers
+
+
+class ElectionEndDateHandler(VoteHandler):
+    """
+    Belt-and-suspenders check: even if the auto-complete background sync
+    hasn't run yet (e.g. first request after restart), block voting for any
+    election whose end_date is already in the past.
+    """
+    def check(self, ctx: VoteContext) -> None:
+        end = ctx.election.end_date
+        if end is None:
+            return
+        # Normalise to naive UTC for comparison
+        from datetime import timezone
+        if end.tzinfo is not None:
+            end = end.astimezone(timezone.utc).replace(tzinfo=None)
+        if end < datetime.utcnow():
+            # Also opportunistically update the DB status
+            if ctx.election.status != "completed":
+                ctx.election.status = "completed"
+                ctx.db.commit()
+            raise ElectionNotActiveException(ctx.election_id, "completed")
 
 
 class ElectionActiveHandler(VoteHandler):
@@ -131,10 +145,6 @@ class ConstituencyMatchHandler(VoteHandler):
 
 # ── Chain Builder ──────────────────────────────────────────────────────────
 
-"""
-This links all 5 handlers together and returns the first one (head). The backslash \ just means the line continues — it's one long statement broken across multiple lines for readability.
-"""
-
 class VoteValidationChain:
     """Assembles and returns the head of the validation chain."""
 
@@ -142,6 +152,7 @@ class VoteValidationChain:
     def build() -> VoteHandler:
         head = ElectionExistsHandler()
         head \
+            .set_next(ElectionEndDateHandler()) \
             .set_next(ElectionActiveHandler()) \
             .set_next(VoterEligibilityHandler()) \
             .set_next(CandidateExistsHandler()) \

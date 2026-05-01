@@ -269,11 +269,14 @@ function Step4Receipt({ vote, election, onReset }: {
   election: ElectionResponse | null;
   onReset: () => void;
 }) {
-  const ts = vote.timestamp ? new Date(vote.timestamp) : new Date();
+  const raw = vote.timestamp
+    ? ((vote.timestamp.endsWith("Z") || vote.timestamp.includes("+")) ? vote.timestamp : vote.timestamp + "Z")
+    : new Date().toISOString();
+  const ts = new Date(raw);
   return (
     <div className="max-w-md mx-auto">
       <ReceiptCard
-        receiptId={`VOTE-${vote.id}-${String(vote.voter_id).padStart(4, "0")}`}
+        receiptId={vote.receipt_code ?? `VOTE-${vote.id}`}
         election={election?.name ?? "Election"}
         date={ts.toLocaleDateString("en-PK", { day: "2-digit", month: "short", year: "numeric" })}
         time={ts.toLocaleTimeString("en-PK", { hour: "2-digit", minute: "2-digit" }) + " PKT"}
