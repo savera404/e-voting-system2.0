@@ -116,11 +116,11 @@ class ElectionService:
             raise ElectionNotFoundException(election_id)
         return election
 
-    def list_elections(self, db: Session, status: Optional[str] = None):
+    def list_elections(self, db: Session, status: Optional[str] = None, election_type: Optional[str] = None):
         self._sync(db)
         if status:
-            return self.repo.get_by_status(db, status)
-        return self.repo.get_all(db)
+            return self.repo.get_by_status(db, status, election_type)
+        return self.repo.get_all(db, election_type=election_type)
 
     def delete_election(self, db: Session, election_id: int):
         election = self.get_election(db, election_id)

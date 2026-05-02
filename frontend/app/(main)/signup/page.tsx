@@ -1,7 +1,20 @@
 "use client";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { registerVoter, listConstituencies, type ConstituencyResponse } from "../../../lib/api";
+import {
+  registerVoter,
+  listProvinces, listCities, listConstituencies,
+  type ProvinceResponse, type CityResponse, type ConstituencyResponse,
+} from "../../../lib/api";
+
+const CONSTITUENCY_TYPES = [
+  { value: "federal",    label: "Federal",    hint: "National Assembly (NA-xxx)" },
+  { value: "provincial", label: "Provincial", hint: "Provincial Assembly (PA/PS/PP/PK-xxx)" },
+  { value: "local",      label: "Local",      hint: "Local body constituency" },
+];
+
+const inputClass = "w-full px-4 py-3 rounded-xl border-2 border-green-100 bg-white text-gray-950 text-sm placeholder-gray-300 outline-none transition-all focus:border-green-700 focus:ring-2 focus:ring-green-700/10";
+const labelClass = "block text-sm font-semibold text-gray-800 mb-1.5";
 
 export default function SignupPage() {
   const router = useRouter();
@@ -10,31 +23,57 @@ export default function SignupPage() {
   const [error, setError]       = useState<string | null>(null);
   const [loading, setLoading]   = useState(false);
 
-  // Constituency dropdown state
+  // ── Location cascade state ──────────────────────────────────────────────
+  const [provinces,      setProvinces]      = useState<ProvinceResponse[]>([]);
+  const [cities,         setCities]         = useState<CityResponse[]>([]);
   const [constituencies, setConstituencies] = useState<ConstituencyResponse[]>([]);
-  const [constLoading, setConstLoading]     = useState(false);
+
+  const [selectedProvince, setSelectedProvince] = useState("");
+  const [selectedCity,     setSelectedCity]     = useState("");
+  const [constType,        setConstType]        = useState("");
+
+  const [citiesLoading,  setCitiesLoading]  = useState(false);
+  const [constsLoading,  setConstsLoading]  = useState(false);
 
   const [form, setForm] = useState({
-    name: "",
-    father_or_husband_name: "",
-    email: "",
-    phone: "",
-    password: "",
-    cnic: "",
-    constituency_id: "",   // stored as string from select, cast to int on submit
-    agreeTerms: false,
+    name: "", father_or_husband_name: "",
+    email: "", phone: "", password: "",
+    cnic: "", constituency_id: "", agreeTerms: false,
   });
 
-  // Load constituencies once when step 2 mounts
+  // Load provinces once when step 2 mounts
   useEffect(() => {
-    if (step === 2 && constituencies.length === 0) {
-      setConstLoading(true);
-      listConstituencies()
-        .then(setConstituencies)
-        .catch(() => setConstituencies([]))
-        .finally(() => setConstLoading(false));
+    if (step === 2 && provinces.length === 0) {
+      listProvinces().then(setProvinces).catch(() => setProvinces([]));
     }
-  }, [step, constituencies.length]);
+  }, [step]);
+
+  // When province changes → reset downstream and load cities
+  useEffect(() => {
+    setCities([]);
+    setSelectedCity("");
+    setConstituencies([]);
+    setConstType("");
+    setForm((f) => ({ ...f, constituency_id: "" }));
+    if (!selectedProvince) return;
+    setCitiesLoading(true);
+    listCities(Number(selectedProvince))
+      .then(setCities)
+      .catch(() => setCities([]))
+      .finally(() => setCitiesLoading(false));
+  }, [selectedProvince]);
+
+  // When city or type changes → reset constituencies and reload
+  useEffect(() => {
+    setConstituencies([]);
+    setForm((f) => ({ ...f, constituency_id: "" }));
+    if (!selectedCity || !constType) return;
+    setConstsLoading(true);
+    listConstituencies(constType, Number(selectedCity))
+      .then(setConstituencies)
+      .catch(() => setConstituencies([]))
+      .finally(() => setConstsLoading(false));
+  }, [selectedCity, constType]);
 
   const handle = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
@@ -52,19 +91,11 @@ export default function SignupPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
-
-    // Step 1 → Step 2
-    if (step === 1) {
-      setStep(2);
-      return;
-    }
-
-    // Final submit
-    if (!form.constituency_id) {
-      setError("Please select a constituency.");
-      return;
-    }
-
+    if (step === 1) { setStep(2); return; }
+    if (!selectedProvince)   { setError("Please select a province."); return; }
+    if (!selectedCity)       { setError("Please select a city."); return; }
+    if (!constType)          { setError("Please select a constituency type."); return; }
+    if (!form.constituency_id) { setError("Please select a constituency."); return; }
     setLoading(true);
     try {
       await registerVoter({
@@ -89,9 +120,6 @@ export default function SignupPage() {
     : form.password.length < 10 ? { label: "Moderate", bar: "w-2/3 bg-yellow-400", text: "text-yellow-500" }
     :                              { label: "Strong",   bar: "w-full bg-green-500", text: "text-green-600"  };
 
-  const inputClass  = "w-full px-4 py-3 rounded-xl border-2 border-green-100 bg-white text-gray-950 text-sm placeholder-gray-300 outline-none transition-all focus:border-green-700 focus:ring-2 focus:ring-green-700/10";
-  const labelClass  = "block text-sm font-semibold text-gray-800 mb-1.5";
-
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#f5f7f5] px-4 py-10">
       <div className="w-full max-w-md bg-white rounded-3xl shadow-xl shadow-green-900/10 p-8">
@@ -111,10 +139,10 @@ export default function SignupPage() {
           {step === 1 ? "Create account" : "Verify identity"}
         </h1>
         <p className="text-sm text-gray-800 mb-5">
-          {step === 1 ? "Register as a verified voter." : "Enter your CNIC and constituency."}
+          {step === 1 ? "Register as a verified voter." : "Enter your CNIC and select your constituency."}
         </p>
 
-        {/* Step Indicator */}
+        {/* Step indicator */}
         <div className="flex items-center gap-2 mb-7">
           {["Account", "Verification"].map((label, i) => {
             const n = i + 1;
@@ -131,7 +159,6 @@ export default function SignupPage() {
           })}
         </div>
 
-        {/* Error banner */}
         {error && (
           <div className="mb-5 px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-700 font-medium">
             {error}
@@ -140,7 +167,7 @@ export default function SignupPage() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
 
-          {/* ── Step 1: Account details ── */}
+          {/* ── Step 1 ── */}
           {step === 1 && (
             <>
               <div>
@@ -148,41 +175,33 @@ export default function SignupPage() {
                 <input name="name" value={form.name} onChange={handle}
                   placeholder="As per your CNIC" required className={inputClass} />
               </div>
-
               <div>
                 <label className={labelClass}>Father / Husband Name <span className="text-red-500">*</span></label>
                 <input name="father_or_husband_name" value={form.father_or_husband_name} onChange={handle}
                   placeholder="As per your CNIC" required className={inputClass} />
               </div>
-
               <div>
                 <label className={labelClass}>Email <span className="text-red-500">*</span></label>
                 <input name="email" type="email" value={form.email} onChange={handle}
                   placeholder="you@email.com" required className={inputClass} />
               </div>
-
               <div>
                 <label className={labelClass}>Phone</label>
                 <input name="phone" value={form.phone} onChange={handle}
                   placeholder="03XX-XXXXXXX" className={inputClass} />
               </div>
-
               <div>
                 <label className={labelClass}>Password <span className="text-red-500">*</span></label>
                 <div className="relative">
                   <input name="password" type={showPass ? "text" : "password"}
                     value={form.password} onChange={handle}
-                    placeholder="Min. 8 characters" required
-                    className={`${inputClass} pr-12`} />
+                    placeholder="Min. 8 characters" required className={`${inputClass} pr-12`} />
                   <button type="button" onClick={() => setShowPass((p) => !p)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-[#1a4a2e] hover:text-green-700 transition-colors">
                     <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
                       {showPass
                         ? <path strokeLinecap="round" strokeLinejoin="round" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M3 3l18 18" />
-                        : <>
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                          </>
+                        : (<><path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></>)
                       }
                     </svg>
                   </button>
@@ -199,9 +218,10 @@ export default function SignupPage() {
             </>
           )}
 
-          {/* ── Step 2: Verification ── */}
+          {/* ── Step 2 ── */}
           {step === 2 && (
             <>
+              {/* CNIC */}
               <div>
                 <label className={labelClass}>CNIC Number <span className="text-red-500">*</span></label>
                 <input name="cnic" value={form.cnic} onChange={handleCNIC}
@@ -209,47 +229,106 @@ export default function SignupPage() {
                 <p className="text-xs text-green-400 mt-1">Format: 42101-1234567-9</p>
               </div>
 
+              {/* Province */}
               <div>
-                <label className={labelClass}>Constituency <span className="text-red-500">*</span></label>
-                {constLoading ? (
-                  <div className="w-full px-4 py-3 rounded-xl border-2 border-green-100 bg-white text-sm text-gray-400">
-                    Loading constituencies…
-                  </div>
-                ) : (
-                  <select
-                    name="constituency_id"
-                    value={form.constituency_id}
-                    onChange={handle}
-                    required
-                    className={inputClass}
-                  >
-                    <option value="">Select your constituency</option>
-                    {constituencies.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        {c.name}{c.type ? ` (${c.type})` : ""}
-                      </option>
-                    ))}
-                  </select>
-                )}
-                {!constLoading && constituencies.length === 0 && (
-                  <p className="text-xs text-red-400 mt-1">
-                    Could not load constituencies. Please ensure the backend is running.
-                  </p>
-                )}
+                <label className={labelClass}>Province <span className="text-red-500">*</span></label>
+                <select value={selectedProvince} onChange={(e) => setSelectedProvince(e.target.value)}
+                  className={inputClass} required>
+                  <option value="">Select province</option>
+                  {provinces.map((p) => (
+                    <option key={p.id} value={p.id}>{p.name}</option>
+                  ))}
+                </select>
               </div>
 
-              <div className="flex items-start gap-3">
+              {/* City — shown once province is selected */}
+              {selectedProvince && (
+                <div>
+                  <label className={labelClass}>City <span className="text-red-500">*</span></label>
+                  {citiesLoading ? (
+                    <div className={`${inputClass} flex items-center gap-2 text-gray-400`}>
+                      <svg className="animate-spin shrink-0" width="14" height="14" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 12a8 8 0 018-8V0" />
+                      </svg>
+                      Loading cities…
+                    </div>
+                  ) : (
+                    <select value={selectedCity} onChange={(e) => setSelectedCity(e.target.value)}
+                      className={inputClass} required>
+                      <option value="">Select city</option>
+                      {cities.map((c) => (
+                        <option key={c.id} value={c.id}>{c.name}</option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              )}
+
+              {/* Constituency type — shown once city is selected */}
+              {selectedCity && (
+                <div>
+                  <label className={labelClass}>Constituency Type <span className="text-red-500">*</span></label>
+                  <div className="grid grid-cols-3 gap-2">
+                    {CONSTITUENCY_TYPES.map(({ value, label, hint }) => (
+                      <button key={value} type="button" onClick={() => setConstType(value)}
+                        className={`flex flex-col items-center gap-1 py-3 px-2 rounded-xl border-2 text-center transition-all
+                          ${constType === value
+                            ? "border-[#1a4a2e] bg-green-50 text-[#1a4a2e]"
+                            : "border-green-100 bg-white text-gray-400 hover:border-green-300"}`}>
+                        <span className="text-xs font-bold">{label}</span>
+                        <span className="text-[9px] leading-tight opacity-70">{hint}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Constituency — shown once city + type are selected */}
+              {selectedCity && constType && (
+                <div>
+                  <label className={labelClass}>
+                    {CONSTITUENCY_TYPES.find(t => t.value === constType)?.label} Constituency{" "}
+                    <span className="text-red-500">*</span>
+                  </label>
+                  {constsLoading ? (
+                    <div className={`${inputClass} flex items-center gap-2 text-gray-400`}>
+                      <svg className="animate-spin shrink-0" width="14" height="14" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 12a8 8 0 018-8V0" />
+                      </svg>
+                      Loading constituencies…
+                    </div>
+                  ) : constituencies.length === 0 ? (
+                    <div className="px-4 py-3 rounded-xl border-2 border-orange-100 bg-orange-50 text-sm text-orange-600">
+                      No {constType} constituencies found for this city.
+                    </div>
+                  ) : (
+                    <>
+                      <select name="constituency_id" value={form.constituency_id}
+                        onChange={handle} required className={inputClass}>
+                        <option value="">Select your constituency</option>
+                        {constituencies.map((c) => (
+                          <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                      </select>
+                      <p className="text-xs text-green-400 mt-1">{constituencies.length} constituencies in this city</p>
+                    </>
+                  )}
+                </div>
+              )}
+
+              <div className="flex items-start gap-3 pt-1">
                 <input type="checkbox" name="agreeTerms" checked={form.agreeTerms}
                   onChange={handle} required
                   className="mt-0.5 w-4 h-4 accent-green-700 cursor-pointer shrink-0" />
                 <p className="text-xs text-gray-800 leading-relaxed">
                   I confirm all information is accurate and I agree to the{" "}
-                  <a href="#" className="font-bold text-green-800 hover:underline">Terms</a> &{" "}
+                  <a href="#" className="font-bold text-green-800 hover:underline">Terms</a> &amp;{" "}
                   <a href="#" className="font-bold text-green-800 hover:underline">Privacy Policy</a>.
                 </p>
               </div>
 
-              <button type="button" onClick={() => { setError(null); setStep(1); }}
+              <button type="button"
+                onClick={() => { setError(null); setStep(1); setSelectedProvince(""); setSelectedCity(""); setConstType(""); }}
                 className="w-full py-3 rounded-xl border-2 border-green-200 bg-white
                   text-green-800 font-semibold text-sm hover:border-green-600 hover:bg-green-50 transition-all">
                 ← Back
@@ -257,14 +336,10 @@ export default function SignupPage() {
             </>
           )}
 
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-3.5 rounded-xl bg-[#1a4a2e]
-              text-white font-semibold text-sm shadow-lg shadow-green-900/25
-              hover:-translate-y-0.5 hover:shadow-xl transition-all
-              disabled:opacity-60 disabled:cursor-not-allowed disabled:translate-y-0"
-          >
+          <button type="submit" disabled={loading}
+            className="w-full py-3.5 rounded-xl bg-[#1a4a2e] text-white font-semibold text-sm
+              shadow-lg shadow-green-900/25 hover:-translate-y-0.5 hover:shadow-xl transition-all
+              disabled:opacity-60 disabled:cursor-not-allowed disabled:translate-y-0">
             {step === 1 ? "Continue →" : loading ? "Registering…" : "Complete Registration ✓"}
           </button>
         </form>

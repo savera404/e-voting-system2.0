@@ -110,13 +110,20 @@ export interface ElectionResponse {
   end_date: string | null;
 }
 
-export function listElections(status?: string): Promise<ElectionResponse[]> {
-  const qs = status ? `?status=${status}` : "";
+export function listElections(status?: string, type?: string): Promise<ElectionResponse[]> {
+  const params = new URLSearchParams();
+  if (status) params.set("status", status);
+  if (type)   params.set("type",   type);
+  const qs = params.toString() ? `?${params.toString()}` : "";
   return request<ElectionResponse[]>(`/elections${qs}`);
 }
 
 export function getElection(id: number): Promise<ElectionResponse> {
   return request<ElectionResponse>(`/elections/${id}`);
+}
+
+export function getConstituency(id: number): Promise<ConstituencyResponse> {
+  return request<ConstituencyResponse>(`/locations/constituencies/${id}`);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -220,8 +227,12 @@ export interface ConstituencyResponse {
   district_id: number | null;
 }
 
-export function listConstituencies(): Promise<ConstituencyResponse[]> {
-  return request<ConstituencyResponse[]>("/locations/constituencies");
+export function listConstituencies(type?: string, cityId?: number): Promise<ConstituencyResponse[]> {
+  const params = new URLSearchParams();
+  if (type)   params.set("type",    type);
+  if (cityId) params.set("city_id", String(cityId));
+  const qs = params.toString() ? `?${params.toString()}` : "";
+  return request<ConstituencyResponse[]>(`/locations/constituencies${qs}`);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

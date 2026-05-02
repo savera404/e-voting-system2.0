@@ -17,8 +17,12 @@ def create_election(data: ElectionCreate, db: Session = Depends(get_db)):
 
 
 @router.get("/")
-def list_elections(status: Optional[str] = None, db: Session = Depends(get_db)):
-    return service.list_elections(db, status)
+def list_elections(
+    status: Optional[str] = None,
+    type: Optional[str] = None,
+    db: Session = Depends(get_db)
+):
+    return service.list_elections(db, status, election_type=type)
 
 
 @router.get("/audit-trail")

@@ -45,8 +45,9 @@ class LocationService:
     def create_constituency(self, db: Session, data: ConstituencyCreate):
         return self.repo.create_constituency(db, data.name, data.type, data.district_id)
 
-    def list_constituencies(self, db: Session, district_id: Optional[int] = None):
-        return self.repo.list_constituencies(db, district_id)
+    def list_constituencies(self, db: Session, district_id: Optional[int] = None,
+                             cons_type: Optional[str] = None, city_id: Optional[int] = None):
+        return self.repo.list_constituencies(db, district_id, cons_type, city_id)
 
     def get_constituency(self, db: Session, constituency_id: int):
         c = self.repo.get_constituency(db, constituency_id)

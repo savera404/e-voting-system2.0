@@ -51,8 +51,13 @@ def create_district(data: DistrictCreate, db: Session = Depends(get_db)):
 # ── Constituencies ─────────────────────────────────────────────────────────
 
 @router.get("/constituencies")
-def list_constituencies(district_id: Optional[int] = None, db: Session = Depends(get_db)):
-    return service.list_constituencies(db, district_id)
+def list_constituencies(
+    district_id: Optional[int] = None,
+    type: Optional[str] = None,
+    city_id: Optional[int] = None,
+    db: Session = Depends(get_db)
+):
+    return service.list_constituencies(db, district_id, cons_type=type, city_id=city_id)
 
 
 @router.post("/constituencies")

@@ -78,9 +78,17 @@ class LocationRepository:
         return db.query(Constituency).filter(Constituency.id == constituency_id).first()
 
     def list_constituencies(
-        self, db: Session, district_id: Optional[int] = None
+        self, db: Session, district_id: Optional[int] = None,
+        cons_type: Optional[str] = None,
+        city_id: Optional[int] = None,
     ) -> List[Constituency]:
         q = db.query(Constituency)
+        if city_id:
+            # Join through District to filter by city
+            q = q.join(District, Constituency.district_id == District.id)\
+                 .filter(District.city_id == city_id)
         if district_id:
             q = q.filter(Constituency.district_id == district_id)
-        return q.all()
+        if cons_type:
+            q = q.filter(Constituency.type == cons_type)
+        return q.order_by(Constituency.name).all()

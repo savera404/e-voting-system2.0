@@ -19,6 +19,7 @@ import {
   listCandidates,
   listElections,
   castVote,
+  getConstituency,
   type VoterResponse,
   type CandidateResponse,
   type ElectionResponse,
@@ -340,9 +341,20 @@ export default function VotePage() {
 
     setBallotLoading(true);
     try {
+      // Resolve the voter's constituency type so we only show matching elections
+      let constituencyType: string | undefined;
+      if (voter.constituency_id) {
+        try {
+          const cons = await getConstituency(voter.constituency_id);
+          constituencyType = cons.type ?? undefined;
+        } catch {
+          // Non-fatal — fall back to showing all active elections
+        }
+      }
+
       const [cands, elecs] = await Promise.all([
         listCandidates(voter.constituency_id ?? undefined),
-        listElections("active"),
+        listElections("active", constituencyType),
       ]);
       setCandidates(cands);
       setElections(elecs);
