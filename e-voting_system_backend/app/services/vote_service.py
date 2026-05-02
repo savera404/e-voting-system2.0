@@ -100,10 +100,7 @@ class VoteService:
             ledger_hash=ledger_hash,
         )
         saved_vote = self.vote_repo.create(db, vote)
-        self.voter_repo.mark_voted(db, current_voter)
-        # mark_voted does a second db.commit() which expires all ORM objects.
-        # Refresh saved_vote so receipt_code and ledger_hash are reloaded
-        # from the DB before FastAPI serializes it into the response.
+        self.voter_repo.mark_voted(db, current_voter, ctx.election.type or "")
         db.refresh(saved_vote)
         return saved_vote
 

@@ -64,8 +64,12 @@ export interface VoterResponse {
   name: string;
   cnic: string;
   email: string;
-  constituency_id: number | null;
+  federal_constituency_id: number | null;
+  provincial_constituency_id: number | null;
   has_voted: boolean;
+  has_voted_federal: boolean;
+  has_voted_provincial: boolean;
+  has_voted_local: boolean;
   created_at: string | null;
 }
 
@@ -76,7 +80,8 @@ export interface RegisterPayload {
   phone_number?: string;
   email: string;
   password: string;
-  constituency_id: number;
+  federal_constituency_id: number;
+  provincial_constituency_id: number;
 }
 
 export function loginVoter(email: string, password: string): Promise<TokenResponse> {

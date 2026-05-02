@@ -58,14 +58,14 @@ export default function MyProfilePage() {
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                {[
-                  ["Full Name",      name,                  setName,  true ],
-                  ["Email Address",  email,                 setEmail, true ],
-                  ["Phone Number",   phone,                 setPhone, true ],
-                  ["CNIC",           "35202-1234567-8",     null,     false],
-                  ["Date of Birth",  "Jan 15, 1985",        null,     false],
-                  ["Nationality",    "Pakistani",           null,     false],
-                ].map(([label, value, setter, editable]) => (
+                {([
+                  ["Full Name",      name,                  setName,  true ] as const,
+                  ["Email Address",  email,                 setEmail, true ] as const,
+                  ["Phone Number",   phone,                 setPhone, true ] as const,
+                  ["CNIC",           "35202-1234567-8",     null,     false] as const,
+                  ["Date of Birth",  "Jan 15, 1985",        null,     false] as const,
+                  ["Nationality",    "Pakistani",           null,     false] as const,
+                ]).map(([label, value, setter, editable]) => (
                   <div key={String(label)}>
                     <label className="block text-[11px] font-bold tracking-widest uppercase text-gray-400 mb-1.5">
                       {label}

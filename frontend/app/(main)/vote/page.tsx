@@ -1,14 +1,7 @@
 "use client";
-// ─────────────────────────────────────────────────────────────────────────────
-// DESIGN PATTERNS USED IN THIS FILE:
-//
-// ✅ STRATEGY PATTERN   — Each step is a separate strategy component.
-//                         VotePage selects which to render based on `step`.
-// ✅ OBSERVER PATTERN   — All state managed centrally; step-components observe
-//                         via props (same as before, now extended with API data)
-// ✅ CONTAINER/PRESENTATIONAL — VotePage owns state + API calls; step components
-//                         are pure presentational.
-// ─────────────────────────────────────────────────────────────────────────────
+// DESIGN PATTERNS: Strategy (each step is a separate component),
+// Observer (central state passed down as props),
+// Container/Presentational (VotePage owns state, steps are pure UI)
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
@@ -19,7 +12,6 @@ import {
   listCandidates,
   listElections,
   castVote,
-  getConstituency,
   type VoterResponse,
   type CandidateResponse,
   type ElectionResponse,
@@ -29,96 +21,157 @@ import {
 const { primary: G, primaryLight: GL, border: BORDER, bg: BG } = COLORS;
 const VOTE_STEPS = ["Verify Identity", "Select Candidate", "Confirm Vote", "Receipt"];
 
-// ── Helper: party color map ────────────────────────────────────────────────
 const PARTY_COLORS: Record<string, string> = {
-  PTI:         "#c41e3a",
-  "PML-N":     "#1a4731",
-  PPP:         "#1a1a1a",
-  MQM:         "#b45309",
-  "JUI-F":     "#6366f1",
-  Independent: "#6b7280",
+  PTI: "#c41e3a", "PML-N": "#1a4731", PPP: "#1a1a1a",
+  MQM: "#b45309", "JUI-F": "#6366f1", Independent: "#6b7280",
 };
-function partyColor(party: string | null): string {
-  return PARTY_COLORS[party ?? ""] ?? "#9ca3af";
+function partyColor(party: string | null) { return PARTY_COLORS[party ?? ""] ?? "#9ca3af"; }
+function partyEmoji(party: string | null) {
+  return ({ PTI: "🦅", "PML-N": "⚡", PPP: "🏹", MQM: "🔑", "JUI-F": "📖" } as Record<string, string>)[party ?? ""] ?? "🌟";
 }
-function partyEmoji(party: string | null): string {
-  const map: Record<string, string> = {
-    PTI: "🦅", "PML-N": "⚡", PPP: "🏹", MQM: "🔑", "JUI-F": "📖",
-  };
-  return map[party ?? ""] ?? "🌟";
+
+// ── Helper: determine the next election type to vote in ───────────────────
+function getNextElectionType(voter: VoterResponse): "federal" | "provincial" | null {
+  if (!voter.has_voted_federal)    return "federal";
+  if (!voter.has_voted_provincial) return "provincial";
+  return null; // all done
+}
+
+function electionTypeLabel(type: string): string {
+  return type === "federal" ? "Federal (National Assembly)" : "Provincial (Provincial Assembly)";
 }
 
 // ── STRATEGY 1: Identity Verification ─────────────────────────────────────
-function Step1Verify({
-  voter, cnic, setCnic, onNext, error,
-}: {
+function Step1Verify({ voter, cnic, setCnic, onNext, error, currentElectionType }: {
   voter: VoterResponse | null;
   cnic: string;
   setCnic: (v: string) => void;
   onNext: () => void;
   error: string | null;
+  currentElectionType: "federal" | "provincial" | null;
 }) {
-  const formatCnic = (v: string) => {
+  const fmt = (v: string) => {
     const d = v.replace(/\D/g, "").slice(0, 13);
     if (d.length > 10) return `${d.slice(0, 5)}-${d.slice(5, 12)}-${d.slice(12)}`;
     if (d.length > 5)  return `${d.slice(0, 5)}-${d.slice(5)}`;
     return d;
   };
-
   const canVerify = cnic.replace(/\D/g, "").length >= 13;
 
   return (
     <div className="bg-white rounded-2xl border p-7 shadow-sm" style={{ borderColor: BORDER }}>
       <h3 className="font-bold text-lg text-gray-900 mb-2" style={{ fontFamily: "Georgia, serif" }}>
-        Step 1 — Verify Identity
+        Verify Identity
       </h3>
       {voter && (
         <p className="text-sm text-gray-500 mb-5">
-          Logged in as <span className="font-semibold text-gray-800">{voter.name}</span>. Please confirm your CNIC to proceed.
+          Logged in as <span className="font-semibold text-gray-800">{voter.name}</span>. Confirm your CNIC to continue.
         </p>
       )}
 
-      {error && (
-        <div className="mb-4 px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-700">
-          {error}
+      {/* Per-type vote status badges */}
+      {voter && (
+        <div className="flex gap-2 mb-5 flex-wrap">
+          {[
+            { value: "federal",    label: "Federal",    done: voter.has_voted_federal },
+            { value: "provincial", label: "Provincial", done: voter.has_voted_provincial },
+          ].map(({ value, label, done }) => (
+            <span key={value} className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold"
+              style={{
+                background:  done ? "#f0fdf4" : "#f9fafb",
+                borderColor: done ? "#86efac" : "#e5e7eb",
+                color:       done ? "#16a34a" : "#9ca3af",
+              }}>
+              {done ? "✓" : "○"} {label}
+            </span>
+          ))}
         </div>
+      )}
+
+      {/* Show which election type is next */}
+      {currentElectionType && (
+        <div className="mb-5 px-4 py-3 rounded-xl bg-blue-50 border border-blue-200 text-sm text-blue-800">
+          🗳️ Next up: <span className="font-bold">{electionTypeLabel(currentElectionType)}</span> election
+        </div>
+      )}
+
+      {!currentElectionType && voter && (
+        <div className="mb-5 px-4 py-3 rounded-xl bg-green-50 border border-green-200 text-sm text-green-800">
+          ✅ You have already voted in all election types. Thank you!
+        </div>
+      )}
+
+      {error && (
+        <div className="mb-4 px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-700">{error}</div>
       )}
 
       <label className="block text-xs font-semibold text-gray-600 mb-2">CNIC Number</label>
       <input
         value={cnic}
-        onChange={(e) => setCnic(formatCnic(e.target.value))}
+        onChange={(e) => setCnic(fmt(e.target.value))}
         placeholder="35202-1234567-8"
         className="w-full px-4 py-3 rounded-xl border text-sm mb-5 bg-gray-50 focus:outline-none"
         style={{ borderColor: BORDER, fontFamily: "monospace" }}
       />
-
-      <button
-        onClick={onNext}
-        disabled={!canVerify}
+      <button onClick={onNext} disabled={!canVerify || !currentElectionType}
         className="w-full py-3.5 rounded-xl font-bold text-sm text-white hover:opacity-90 transition-all"
-        style={{ background: canVerify ? G : "#d1d5db" }}
-      >
+        style={{ background: canVerify && currentElectionType ? G : "#d1d5db", cursor: canVerify && currentElectionType ? "pointer" : "not-allowed" }}>
         Verify &amp; Get Ballot
       </button>
     </div>
   );
 }
 
-// ── STRATEGY 2: Ballot / Candidate Selection ───────────────────────────────
-function Step2Ballot({
-  candidates, elections, sel, electionId,
-  onSelect, onElectionSelect, onNext, loading,
-}: {
-  candidates: CandidateResponse[];
-  elections: ElectionResponse[];
-  sel: number | null;
-  electionId: number | null;
-  onSelect: (id: number) => void;
-  onElectionSelect: (id: number) => void;
-  onNext: () => void;
+// ── STRATEGY 2: Election → Candidate selection (auto-determined type) ─────
+function Step2Ballot({ voter, currentElectionType, onNext, loading }: {
+  voter: VoterResponse;
+  currentElectionType: "federal" | "provincial";
+  onNext: (candidate: CandidateResponse, election: ElectionResponse) => void;
   loading: boolean;
 }) {
+  const [elections,        setElections]        = useState<ElectionResponse[]>([]);
+  const [selectedElection, setSelectedElection] = useState<ElectionResponse | null>(null);
+  const [candidates,       setCandidates]       = useState<CandidateResponse[]>([]);
+  const [selectedCandidate, setSelectedCandidate] = useState<number | null>(null);
+  const [electionsLoading,  setElectionsLoading]  = useState(false);
+  const [candidatesLoading, setCandidatesLoading] = useState(false);
+  const [noElections,       setNoElections]        = useState(false);
+
+  // Determine the voter's constituency ID for this election type
+  const voterConstituencyId = currentElectionType === "federal"
+    ? voter.federal_constituency_id
+    : voter.provincial_constituency_id;
+
+  // Load active elections of the current type
+  useEffect(() => {
+    setElections([]);
+    setSelectedElection(null);
+    setCandidates([]);
+    setSelectedCandidate(null);
+    setNoElections(false);
+    setElectionsLoading(true);
+    listElections("active", currentElectionType)
+      .then((data) => {
+        setElections(data);
+        setNoElections(data.length === 0);
+        if (data.length === 1) setSelectedElection(data[0]);
+      })
+      .catch(() => setNoElections(true))
+      .finally(() => setElectionsLoading(false));
+  }, [currentElectionType]);
+
+  // When election changes → load candidates for voter's constituency
+  useEffect(() => {
+    setCandidates([]);
+    setSelectedCandidate(null);
+    if (!selectedElection) return;
+    setCandidatesLoading(true);
+    listCandidates(voterConstituencyId ?? undefined)
+      .then(setCandidates)
+      .catch(() => setCandidates([]))
+      .finally(() => setCandidatesLoading(false));
+  }, [selectedElection]);
+
   if (loading) {
     return (
       <div className="bg-white rounded-2xl border p-10 shadow-sm text-center" style={{ borderColor: BORDER }}>
@@ -129,86 +182,122 @@ function Step2Ballot({
   }
 
   return (
-    <div>
-      {/* Election selector */}
-      {elections.length > 1 && (
-        <div className="mb-5">
-          <label className="block text-xs font-semibold text-gray-600 mb-2">Select Election</label>
-          <select
-            value={electionId ?? ""}
-            onChange={(e) => onElectionSelect(Number(e.target.value))}
-            className="w-full px-4 py-3 rounded-xl border text-sm bg-gray-50 focus:outline-none"
-            style={{ borderColor: BORDER }}
-          >
-            <option value="">Choose an election</option>
+    <div className="flex flex-col gap-5">
+
+      {/* ── Election type banner ── */}
+      <div className="bg-white rounded-2xl border p-5 shadow-sm" style={{ borderColor: BORDER }}>
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-full flex items-center justify-center text-lg"
+            style={{ background: GL }}>
+            {currentElectionType === "federal" ? "🏛️" : "🏢"}
+          </div>
+          <div>
+            <p className="text-xs font-bold tracking-widest uppercase text-gray-400">Voting For</p>
+            <p className="text-sm font-bold text-gray-900">{electionTypeLabel(currentElectionType)}</p>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Step A: Select Election ── */}
+      <div className="bg-white rounded-2xl border p-6 shadow-sm" style={{ borderColor: BORDER }}>
+        <p className="text-xs font-bold tracking-widest uppercase text-gray-400 mb-4">
+          Step A — Select Election
+        </p>
+        {electionsLoading ? (
+          <div className="flex items-center gap-2 text-sm text-gray-400">
+            <div className="w-4 h-4 border-2 border-green-700 border-t-transparent rounded-full animate-spin" />
+            Loading {currentElectionType} elections…
+          </div>
+        ) : noElections ? (
+          <p className="text-sm text-orange-600 bg-orange-50 border border-orange-100 rounded-xl px-4 py-3">
+            No active {currentElectionType} elections right now.
+          </p>
+        ) : (
+          <div className="flex flex-col gap-2">
             {elections.map((el) => (
-              <option key={el.id} value={el.id}>{el.name}</option>
+              <button key={el.id} onClick={() => setSelectedElection(el)}
+                className="flex items-center justify-between px-4 py-3 rounded-xl border-2 text-left transition-all"
+                style={{
+                  borderColor: selectedElection?.id === el.id ? G : "#e5e7eb",
+                  background:  selectedElection?.id === el.id ? GL : "#fff",
+                }}>
+                <div>
+                  <p className="text-sm font-semibold text-gray-900">{el.name}</p>
+                  <p className="text-xs text-gray-400 capitalize mt-0.5">{el.type} election</p>
+                </div>
+                <div className="w-4 h-4 rounded-full flex-shrink-0"
+                  style={{ border: selectedElection?.id === el.id ? `5px solid ${G}` : "2px solid #d1d5db" }} />
+              </button>
             ))}
-          </select>
+          </div>
+        )}
+      </div>
+
+      {/* ── Step B: Pick candidate (only shown after election chosen) ── */}
+      {selectedElection && (
+        <div className="bg-white rounded-2xl border p-6 shadow-sm" style={{ borderColor: BORDER }}>
+          <p className="text-xs font-bold tracking-widest uppercase text-gray-400 mb-4">
+            Step B — Select Candidate
+          </p>
+          {candidatesLoading ? (
+            <div className="flex items-center gap-2 text-sm text-gray-400">
+              <div className="w-4 h-4 border-2 border-green-700 border-t-transparent rounded-full animate-spin" />
+              Loading candidates…
+            </div>
+          ) : candidates.length === 0 ? (
+            <p className="text-sm text-gray-400">No candidates found for your constituency.</p>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {candidates.map((c) => {
+                const isSelected = selectedCandidate === c.id;
+                return (
+                  <button key={c.id} onClick={() => setSelectedCandidate(c.id)}
+                    className="flex items-center gap-4 p-4 rounded-xl border-2 text-left transition-all"
+                    style={{
+                      borderColor: isSelected ? G : "#e5e7eb",
+                      background:  isSelected ? GL : "#fff",
+                      transform:   isSelected ? "translateX(4px)" : "none",
+                    }}>
+                    <div className="w-11 h-11 rounded-full flex items-center justify-center text-xl flex-shrink-0"
+                      style={{ background: `${partyColor(c.party_name)}22` }}>
+                      {partyEmoji(c.party_name)}
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-bold text-gray-900">{c.name}</p>
+                      <p className="text-xs text-gray-400 mt-0.5">{c.party_name ?? "Independent"}</p>
+                    </div>
+                    <div className="w-5 h-5 rounded-full flex-shrink-0"
+                      style={{ border: isSelected ? `6px solid ${G}` : "2px solid #d1d5db" }} />
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       )}
 
-      {candidates.length === 0 ? (
-        <div className="bg-white rounded-2xl border p-8 text-center shadow-sm" style={{ borderColor: BORDER }}>
-          <p className="text-sm text-gray-400">No candidates found for your constituency.</p>
-        </div>
-      ) : (
-        <>
-          <p className="text-sm text-gray-500 mb-5 font-medium">Select one candidate:</p>
-          <div className="flex flex-col gap-3 mb-6">
-            {candidates.map((c) => {
-              const isSelected = sel === c.id;
-              return (
-                <button
-                  key={c.id}
-                  onClick={() => onSelect(c.id)}
-                  className="flex items-center gap-4 p-5 rounded-xl border-2 text-left transition-all"
-                  style={{
-                    borderColor: isSelected ? G : BORDER,
-                    background:  isSelected ? GL : "#fff",
-                    transform:   isSelected ? "translateX(4px)" : "none",
-                  }}
-                >
-                  <div
-                    className="w-11 h-11 rounded-full flex items-center justify-center text-xl flex-shrink-0"
-                    style={{ background: `${partyColor(c.party_name)}22` }}
-                  >
-                    {partyEmoji(c.party_name)}
-                  </div>
-                  <div className="flex-1">
-                    <p className="font-bold text-gray-900">{c.name}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">{c.party_name ?? "Independent"}</p>
-                  </div>
-                  <div
-                    className="w-5 h-5 rounded-full flex-shrink-0"
-                    style={{ border: isSelected ? `6px solid ${G}` : "2px solid #d1d5db" }}
-                  />
-                </button>
-              );
-            })}
-          </div>
-          <button
-            onClick={() => sel && electionId && onNext()}
-            disabled={!sel || !electionId}
-            className="w-full py-4 rounded-xl font-bold text-base text-white transition-all"
-            style={{
-              background: sel && electionId ? G : "#d1d5db",
-              cursor: sel && electionId ? "pointer" : "not-allowed",
-            }}
-          >
-            Proceed to Confirm →
-          </button>
-        </>
-      )}
+      {/* ── Proceed button ── */}
+      <button
+        onClick={() => {
+          const full = candidates.find(c => c.id === selectedCandidate);
+          if (full && selectedElection) onNext(full, selectedElection);
+        }}
+        disabled={!selectedCandidate || !selectedElection}
+        className="w-full py-4 rounded-xl font-bold text-base text-white transition-all"
+        style={{
+          background: selectedCandidate && selectedElection ? G : "#d1d5db",
+          cursor: selectedCandidate && selectedElection ? "pointer" : "not-allowed",
+        }}>
+        Proceed to Confirm →
+      </button>
     </div>
   );
 }
 
 // ── STRATEGY 3: Confirmation ───────────────────────────────────────────────
-function Step3Confirm({
-  candidate, onConfirm, onBack, loading, error,
-}: {
+function Step3Confirm({ candidate, election, onConfirm, onBack, loading, error }: {
   candidate: CandidateResponse;
+  election: ElectionResponse;
   onConfirm: () => void;
   onBack: () => void;
   loading: boolean;
@@ -217,12 +306,12 @@ function Step3Confirm({
   return (
     <div>
       <div className="bg-white rounded-2xl border p-7 mb-4 shadow-sm" style={{ borderColor: BORDER }}>
-        <p className="text-xs font-bold tracking-widest uppercase text-gray-400 mb-4">You are voting for:</p>
+        <p className="text-xs font-bold tracking-widest uppercase text-gray-400 mb-1">Election</p>
+        <p className="text-sm font-semibold text-gray-800 mb-4">{election.name} — <span className="capitalize">{election.type}</span></p>
+        <p className="text-xs font-bold tracking-widest uppercase text-gray-400 mb-3">You are voting for:</p>
         <div className="flex items-center gap-4 p-5 rounded-xl border-2" style={{ background: GL, borderColor: G }}>
-          <div
-            className="w-14 h-14 rounded-full flex items-center justify-center text-2xl"
-            style={{ background: `${partyColor(candidate.party_name)}22` }}
-          >
+          <div className="w-14 h-14 rounded-full flex items-center justify-center text-2xl"
+            style={{ background: `${partyColor(candidate.party_name)}22` }}>
             {partyEmoji(candidate.party_name)}
           </div>
           <div>
@@ -230,33 +319,22 @@ function Step3Confirm({
             <p className="text-sm text-gray-500">{candidate.party_name ?? "Independent"}</p>
           </div>
         </div>
-
         {error && (
-          <div className="mt-4 px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-700">
-            {error}
-          </div>
+          <div className="mt-4 px-4 py-3 rounded-xl bg-red-50 border border-red-200 text-sm text-red-700">{error}</div>
         )}
-
         <div className="mt-5 flex gap-3 p-4 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-800">
-          ⚠ Your vote is anonymous and encrypted. Once submitted, it cannot be changed.
+          ⚠ Your vote is anonymous and encrypted. Once submitted it cannot be changed.
         </div>
       </div>
-
       <div className="flex gap-3">
-        <button
-          onClick={onBack}
-          disabled={loading}
+        <button onClick={onBack} disabled={loading}
           className="flex-1 py-3.5 rounded-xl border font-semibold text-sm text-gray-600 hover:bg-gray-50"
-          style={{ borderColor: BORDER }}
-        >
+          style={{ borderColor: BORDER }}>
           ← Go Back
         </button>
-        <button
-          onClick={onConfirm}
-          disabled={loading}
+        <button onClick={onConfirm} disabled={loading}
           className="flex-[2] py-3.5 rounded-xl font-bold text-sm text-white hover:opacity-90 disabled:opacity-60"
-          style={{ background: G }}
-        >
+          style={{ background: G }}>
           {loading ? "Casting vote…" : "Confirm & Cast Vote →"}
         </button>
       </div>
@@ -265,13 +343,15 @@ function Step3Confirm({
 }
 
 // ── STRATEGY 4: Receipt ────────────────────────────────────────────────────
-function Step4Receipt({ vote, election, onReset }: {
+function Step4Receipt({ vote, election, hasMoreVotes, onContinueVoting, onGoHome }: {
   vote: VoteResponse;
   election: ElectionResponse | null;
-  onReset: () => void;
+  hasMoreVotes: boolean;
+  onContinueVoting: () => void;
+  onGoHome: () => void;
 }) {
   const raw = vote.timestamp
-    ? ((vote.timestamp.endsWith("Z") || vote.timestamp.includes("+")) ? vote.timestamp : vote.timestamp + "Z")
+    ? (vote.timestamp.endsWith("Z") || vote.timestamp.includes("+") ? vote.timestamp : vote.timestamp + "Z")
     : new Date().toISOString();
   const ts = new Date(raw);
   return (
@@ -282,178 +362,168 @@ function Step4Receipt({ vote, election, onReset }: {
         date={ts.toLocaleDateString("en-PK", { day: "2-digit", month: "short", year: "numeric" })}
         time={ts.toLocaleTimeString("en-PK", { hour: "2-digit", minute: "2-digit" }) + " PKT"}
       />
-      <button
-        onClick={onReset}
-        className="w-full mt-3 py-3 rounded-xl border text-sm font-semibold text-gray-600 hover:bg-gray-50"
-        style={{ borderColor: BORDER }}
-      >
-        Return to Home
-      </button>
+
+      {hasMoreVotes ? (
+        <div className="mt-4 space-y-3">
+          <div className="px-4 py-3 rounded-xl bg-blue-50 border border-blue-200 text-sm text-blue-800">
+            🗳️ You still have <span className="font-bold">provincial election</span> vote remaining.
+            You need to verify your identity again to proceed.
+          </div>
+          <button onClick={onContinueVoting}
+            className="w-full py-3.5 rounded-xl font-bold text-sm text-white hover:opacity-90 transition-all"
+            style={{ background: G }}>
+            Continue to Provincial Vote →
+          </button>
+          <button onClick={onGoHome}
+            className="w-full py-3 rounded-xl border text-sm font-semibold text-gray-600 hover:bg-gray-50"
+            style={{ borderColor: BORDER }}>
+            Vote Later
+          </button>
+        </div>
+      ) : (
+        <div className="mt-4 space-y-3">
+          <div className="px-4 py-3 rounded-xl bg-green-50 border border-green-200 text-sm text-green-800">
+            ✅ You have successfully voted in all election types. Thank you for participating!
+          </div>
+          <button onClick={onGoHome}
+            className="w-full py-3 rounded-xl border text-sm font-semibold text-gray-600 hover:bg-gray-50"
+            style={{ borderColor: BORDER }}>
+            Return to Home
+          </button>
+        </div>
+      )}
     </div>
   );
 }
 
-// ── VOTE PAGE: CONTAINER ───────────────────────────────────────────────────
+// ── CONTAINER ─────────────────────────────────────────────────────────────
 export default function VotePage() {
   const router = useRouter();
-
-  // Step state
-  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
-
-  // API data
-  const [voter,      setVoter]      = useState<VoterResponse | null>(null);
-  const [candidates, setCandidates] = useState<CandidateResponse[]>([]);
-  const [elections,  setElections]  = useState<ElectionResponse[]>([]);
+  const [step, setStep]           = useState<1 | 2 | 3 | 4>(1);
+  const [voter, setVoter]         = useState<VoterResponse | null>(null);
   const [voteResult, setVoteResult] = useState<VoteResponse | null>(null);
-
-  // Form state
-  const [cnic,       setCnic]       = useState("");
-  const [sel,        setSel]        = useState<number | null>(null);
-  const [electionId, setElectionId] = useState<number | null>(null);
-
-  // UI state
+  const [cnic, setCnic]           = useState("");
+  const [verifyError, setVerifyError] = useState<string | null>(null);
   const [ballotLoading, setBallotLoading] = useState(false);
-  const [castLoading,   setCastLoading]   = useState(false);
-  const [verifyError,   setVerifyError]   = useState<string | null>(null);
-  const [castError,     setCastError]     = useState<string | null>(null);
 
-  // Load voter profile on mount — redirect to login if not authenticated
+  // Held between step 2 → 3 → 4
+  const [pendingCandidate, setPendingCandidate] = useState<CandidateResponse | null>(null);
+  const [pendingElection,  setPendingElection]  = useState<ElectionResponse | null>(null);
+  const [castLoading, setCastLoading] = useState(false);
+  const [castError,   setCastError]   = useState<string | null>(null);
+
+  // Auto-determined election type based on voter's voting history
+  const currentElectionType = voter ? getNextElectionType(voter) : null;
+
   useEffect(() => {
-    getVoterProfile()
-      .then(setVoter)
-      .catch(() => router.push("/login"));
+    getVoterProfile().then(setVoter).catch(() => router.push("/login"));
   }, [router]);
 
-  // Step 1 → Step 2: verify CNIC matches profile, then load ballot
-  const handleVerify = async () => {
+  const handleVerify = () => {
     setVerifyError(null);
     if (!voter) return;
 
-    const stripped = cnic.replace(/\D/g, "");
-    if (stripped !== voter.cnic.replace(/\D/g, "")) {
+    if (voter.cnic.replace(/\D/g, "") !== cnic.replace(/\D/g, "")) {
       setVerifyError("CNIC does not match our records for this account.");
       return;
     }
-    if (voter.has_voted) {
-      setVerifyError("You have already cast your vote in this election.");
+    if (!currentElectionType) {
+      setVerifyError("You have already voted in all election types.");
       return;
     }
-
-    setBallotLoading(true);
-    try {
-      // Resolve the voter's constituency type so we only show matching elections
-      let constituencyType: string | undefined;
-      if (voter.constituency_id) {
-        try {
-          const cons = await getConstituency(voter.constituency_id);
-          constituencyType = cons.type ?? undefined;
-        } catch {
-          // Non-fatal — fall back to showing all active elections
-        }
-      }
-
-      const [cands, elecs] = await Promise.all([
-        listCandidates(voter.constituency_id ?? undefined),
-        listElections("active", constituencyType),
-      ]);
-      setCandidates(cands);
-      setElections(elecs);
-      if (elecs.length === 1) setElectionId(elecs[0].id);
-      setStep(2);
-    } catch {
-      setVerifyError("Failed to load ballot. Please try again.");
-    } finally {
-      setBallotLoading(false);
-    }
+    setStep(2);
   };
 
-  // Step 3 → Step 4: cast the vote
+  const handleStep2Next = (candidate: CandidateResponse, election: ElectionResponse) => {
+    setPendingCandidate(candidate);
+    setPendingElection(election);
+    setStep(3);
+  };
+
   const handleCastVote = async () => {
-    if (!sel || !electionId) return;
+    if (!pendingCandidate || !pendingElection) return;
     setCastError(null);
     setCastLoading(true);
     try {
-      const result = await castVote(sel, electionId);
+      const result = await castVote(pendingCandidate.id, pendingElection.id);
       setVoteResult(result);
+      // Refresh voter so per-type flags update for next vote
+      const updated = await getVoterProfile();
+      setVoter(updated);
       setStep(4);
     } catch (err: unknown) {
-      setCastError(err instanceof Error ? err.message : "Failed to cast vote. Please try again.");
+      setCastError(err instanceof Error ? err.message : "Failed to cast vote.");
     } finally {
       setCastLoading(false);
     }
   };
 
-  const reset = () => {
+  const resetForNextVote = () => {
+    // Go back to step 1 for the next election type (provincial)
     setStep(1);
-    setSel(null);
     setCnic("");
     setVerifyError(null);
     setCastError(null);
     setVoteResult(null);
+    setPendingCandidate(null);
+    setPendingElection(null);
   };
 
-  const selectedCandidate = candidates.find((c) => c.id === sel) ?? null;
-  const selectedElection  = elections.find((e) => e.id === electionId) ?? null;
+  const goHome = () => {
+    router.push("/");
+  };
+
+  // Check if voter still has more votes after current vote is cast
+  const hasMoreVotes = voter ? getNextElectionType(voter) !== null : false;
 
   const heroTitles: Record<number, string> = {
-    1: "Vote in 4 Simple Steps",
-    2: "Cast Your Vote",
-    3: "Review Your Vote",
-    4: "Vote Cast Successfully!",
-  };
-
-  // ── STRATEGY PATTERN: map step → component ──────────────────────────────
-  const stepStrategies: Record<number, React.ReactNode> = {
-    1: (
-      <Step1Verify
-        voter={voter}
-        cnic={cnic}
-        setCnic={setCnic}
-        onNext={handleVerify}
-        error={verifyError}
-      />
-    ),
-    2: (
-      <Step2Ballot
-        candidates={candidates}
-        elections={elections}
-        sel={sel}
-        electionId={electionId}
-        onSelect={setSel}
-        onElectionSelect={setElectionId}
-        onNext={() => setStep(3)}
-        loading={ballotLoading}
-      />
-    ),
-    3: selectedCandidate ? (
-      <Step3Confirm
-        candidate={selectedCandidate}
-        onConfirm={handleCastVote}
-        onBack={() => setStep(2)}
-        loading={castLoading}
-        error={castError}
-      />
-    ) : null,
-    4: voteResult ? (
-      <Step4Receipt
-        vote={voteResult}
-        election={selectedElection}
-        onReset={reset}
-      />
-    ) : null,
+    1: "Cast Your Vote", 2: "Select Your Candidate",
+    3: "Review Your Vote", 4: "Vote Cast Successfully!",
   };
 
   return (
     <>
-      <PageHero
-        eyebrow={`Step ${step} of 4`}
-        title={heroTitles[step]}
-        subtitle={step === 3 ? "This action is final and cannot be undone." : undefined}
-      />
+      <PageHero eyebrow={`Step ${step} of 4`} title={heroTitles[step]}
+        subtitle={step === 3 ? "This action is final and cannot be undone." : undefined} />
       <div className="px-4 lg:px-8 py-12" style={{ background: BG, minHeight: "60vh" }}>
         <div className="max-w-xl mx-auto">
           {step < 4 && <StepBar step={step} steps={VOTE_STEPS} />}
-          {stepStrategies[step]}
+
+          {step === 1 && (
+            <Step1Verify voter={voter} cnic={cnic} setCnic={setCnic}
+              onNext={handleVerify} error={verifyError}
+              currentElectionType={currentElectionType} />
+          )}
+
+          {step === 2 && voter && currentElectionType && (
+            <Step2Ballot
+              voter={voter}
+              currentElectionType={currentElectionType}
+              onNext={handleStep2Next}
+              loading={ballotLoading}
+            />
+          )}
+
+          {step === 3 && pendingCandidate && pendingElection && (
+            <Step3Confirm
+              candidate={pendingCandidate}
+              election={pendingElection}
+              onConfirm={handleCastVote}
+              onBack={() => setStep(2)}
+              loading={castLoading}
+              error={castError}
+            />
+          )}
+
+          {step === 4 && voteResult && (
+            <Step4Receipt
+              vote={voteResult}
+              election={pendingElection}
+              hasMoreVotes={hasMoreVotes}
+              onContinueVoting={resetForNextVote}
+              onGoHome={goHome}
+            />
+          )}
         </div>
       </div>
     </>

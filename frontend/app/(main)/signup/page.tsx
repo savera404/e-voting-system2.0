@@ -7,12 +7,6 @@ import {
   type ProvinceResponse, type CityResponse, type ConstituencyResponse,
 } from "../../../lib/api";
 
-const CONSTITUENCY_TYPES = [
-  { value: "federal",    label: "Federal",    hint: "National Assembly (NA-xxx)" },
-  { value: "provincial", label: "Provincial", hint: "Provincial Assembly (PA/PS/PP/PK-xxx)" },
-  { value: "local",      label: "Local",      hint: "Local body constituency" },
-];
-
 const inputClass = "w-full px-4 py-3 rounded-xl border-2 border-green-100 bg-white text-gray-950 text-sm placeholder-gray-300 outline-none transition-all focus:border-green-700 focus:ring-2 focus:ring-green-700/10";
 const labelClass = "block text-sm font-semibold text-gray-800 mb-1.5";
 
@@ -26,19 +20,25 @@ export default function SignupPage() {
   // ── Location cascade state ──────────────────────────────────────────────
   const [provinces,      setProvinces]      = useState<ProvinceResponse[]>([]);
   const [cities,         setCities]         = useState<CityResponse[]>([]);
-  const [constituencies, setConstituencies] = useState<ConstituencyResponse[]>([]);
+
+  // Two separate constituency lists — federal and provincial
+  const [federalConstituencies,    setFederalConstituencies]    = useState<ConstituencyResponse[]>([]);
+  const [provincialConstituencies, setProvincialConstituencies] = useState<ConstituencyResponse[]>([]);
 
   const [selectedProvince, setSelectedProvince] = useState("");
   const [selectedCity,     setSelectedCity]     = useState("");
-  const [constType,        setConstType]        = useState("");
 
-  const [citiesLoading,  setCitiesLoading]  = useState(false);
-  const [constsLoading,  setConstsLoading]  = useState(false);
+  const [citiesLoading,       setCitiesLoading]       = useState(false);
+  const [federalConsLoading,  setFederalConsLoading]  = useState(false);
+  const [provincialConsLoading, setProvincialConsLoading] = useState(false);
 
   const [form, setForm] = useState({
     name: "", father_or_husband_name: "",
     email: "", phone: "", password: "",
-    cnic: "", constituency_id: "", agreeTerms: false,
+    cnic: "",
+    federal_constituency_id: "",
+    provincial_constituency_id: "",
+    agreeTerms: false,
   });
 
   // Load provinces once when step 2 mounts
@@ -52,9 +52,9 @@ export default function SignupPage() {
   useEffect(() => {
     setCities([]);
     setSelectedCity("");
-    setConstituencies([]);
-    setConstType("");
-    setForm((f) => ({ ...f, constituency_id: "" }));
+    setFederalConstituencies([]);
+    setProvincialConstituencies([]);
+    setForm((f) => ({ ...f, federal_constituency_id: "", provincial_constituency_id: "" }));
     if (!selectedProvince) return;
     setCitiesLoading(true);
     listCities(Number(selectedProvince))
@@ -63,17 +63,27 @@ export default function SignupPage() {
       .finally(() => setCitiesLoading(false));
   }, [selectedProvince]);
 
-  // When city or type changes → reset constituencies and reload
+  // When city changes → fetch both federal and provincial constituencies
   useEffect(() => {
-    setConstituencies([]);
-    setForm((f) => ({ ...f, constituency_id: "" }));
-    if (!selectedCity || !constType) return;
-    setConstsLoading(true);
-    listConstituencies(constType, Number(selectedCity))
-      .then(setConstituencies)
-      .catch(() => setConstituencies([]))
-      .finally(() => setConstsLoading(false));
-  }, [selectedCity, constType]);
+    setFederalConstituencies([]);
+    setProvincialConstituencies([]);
+    setForm((f) => ({ ...f, federal_constituency_id: "", provincial_constituency_id: "" }));
+    if (!selectedCity) return;
+
+    const cityId = Number(selectedCity);
+
+    setFederalConsLoading(true);
+    listConstituencies("federal", cityId)
+      .then(setFederalConstituencies)
+      .catch(() => setFederalConstituencies([]))
+      .finally(() => setFederalConsLoading(false));
+
+    setProvincialConsLoading(true);
+    listConstituencies("provincial", cityId)
+      .then(setProvincialConstituencies)
+      .catch(() => setProvincialConstituencies([]))
+      .finally(() => setProvincialConsLoading(false));
+  }, [selectedCity]);
 
   const handle = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { name, value, type } = e.target;
@@ -92,20 +102,21 @@ export default function SignupPage() {
     e.preventDefault();
     setError(null);
     if (step === 1) { setStep(2); return; }
-    if (!selectedProvince)   { setError("Please select a province."); return; }
-    if (!selectedCity)       { setError("Please select a city."); return; }
-    if (!constType)          { setError("Please select a constituency type."); return; }
-    if (!form.constituency_id) { setError("Please select a constituency."); return; }
+    if (!selectedProvince)                { setError("Please select a province."); return; }
+    if (!selectedCity)                    { setError("Please select a city."); return; }
+    if (!form.federal_constituency_id)    { setError("Please select your federal constituency."); return; }
+    if (!form.provincial_constituency_id) { setError("Please select your provincial constituency."); return; }
     setLoading(true);
     try {
       await registerVoter({
-        name:                   form.name,
-        father_or_husband_name: form.father_or_husband_name,
-        cnic:                   form.cnic,
-        phone_number:           form.phone || undefined,
-        email:                  form.email,
-        password:               form.password,
-        constituency_id:        Number(form.constituency_id),
+        name:                       form.name,
+        father_or_husband_name:     form.father_or_husband_name,
+        cnic:                       form.cnic,
+        phone_number:               form.phone || undefined,
+        email:                      form.email,
+        password:                   form.password,
+        federal_constituency_id:    Number(form.federal_constituency_id),
+        provincial_constituency_id: Number(form.provincial_constituency_id),
       });
       router.push("/login");
     } catch (err: unknown) {
@@ -119,6 +130,16 @@ export default function SignupPage() {
     : form.password.length < 6  ? { label: "Weak",     bar: "w-1/4 bg-red-500",    text: "text-red-500"    }
     : form.password.length < 10 ? { label: "Moderate", bar: "w-2/3 bg-yellow-400", text: "text-yellow-500" }
     :                              { label: "Strong",   bar: "w-full bg-green-500", text: "text-green-600"  };
+
+  // Spinner component for loading states
+  const Spinner = ({ text }: { text: string }) => (
+    <div className={`${inputClass} flex items-center gap-2 text-gray-400`}>
+      <svg className="animate-spin shrink-0" width="14" height="14" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+        <path strokeLinecap="round" strokeLinejoin="round" d="M4 12a8 8 0 018-8V0" />
+      </svg>
+      {text}
+    </div>
+  );
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#f5f7f5] px-4 py-10">
@@ -139,7 +160,7 @@ export default function SignupPage() {
           {step === 1 ? "Create account" : "Verify identity"}
         </h1>
         <p className="text-sm text-gray-800 mb-5">
-          {step === 1 ? "Register as a verified voter." : "Enter your CNIC and select your constituency."}
+          {step === 1 ? "Register as a verified voter." : "Enter your CNIC and select your constituencies."}
         </p>
 
         {/* Step indicator */}
@@ -246,12 +267,7 @@ export default function SignupPage() {
                 <div>
                   <label className={labelClass}>City <span className="text-red-500">*</span></label>
                   {citiesLoading ? (
-                    <div className={`${inputClass} flex items-center gap-2 text-gray-400`}>
-                      <svg className="animate-spin shrink-0" width="14" height="14" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 12a8 8 0 018-8V0" />
-                      </svg>
-                      Loading cities…
-                    </div>
+                    <Spinner text="Loading cities…" />
                   ) : (
                     <select value={selectedCity} onChange={(e) => setSelectedCity(e.target.value)}
                       className={inputClass} required>
@@ -264,53 +280,57 @@ export default function SignupPage() {
                 </div>
               )}
 
-              {/* Constituency type — shown once city is selected */}
+              {/* Federal Constituency — shown once city is selected */}
               {selectedCity && (
                 <div>
-                  <label className={labelClass}>Constituency Type <span className="text-red-500">*</span></label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {CONSTITUENCY_TYPES.map(({ value, label, hint }) => (
-                      <button key={value} type="button" onClick={() => setConstType(value)}
-                        className={`flex flex-col items-center gap-1 py-3 px-2 rounded-xl border-2 text-center transition-all
-                          ${constType === value
-                            ? "border-[#1a4a2e] bg-green-50 text-[#1a4a2e]"
-                            : "border-green-100 bg-white text-gray-400 hover:border-green-300"}`}>
-                        <span className="text-xs font-bold">{label}</span>
-                        <span className="text-[9px] leading-tight opacity-70">{hint}</span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Constituency — shown once city + type are selected */}
-              {selectedCity && constType && (
-                <div>
                   <label className={labelClass}>
-                    {CONSTITUENCY_TYPES.find(t => t.value === constType)?.label} Constituency{" "}
+                    Federal Constituency <span className="text-gray-400 font-normal">(National Assembly)</span>{" "}
                     <span className="text-red-500">*</span>
                   </label>
-                  {constsLoading ? (
-                    <div className={`${inputClass} flex items-center gap-2 text-gray-400`}>
-                      <svg className="animate-spin shrink-0" width="14" height="14" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 12a8 8 0 018-8V0" />
-                      </svg>
-                      Loading constituencies…
-                    </div>
-                  ) : constituencies.length === 0 ? (
+                  {federalConsLoading ? (
+                    <Spinner text="Loading federal constituencies…" />
+                  ) : federalConstituencies.length === 0 ? (
                     <div className="px-4 py-3 rounded-xl border-2 border-orange-100 bg-orange-50 text-sm text-orange-600">
-                      No {constType} constituencies found for this city.
+                      No federal constituencies found for this city.
                     </div>
                   ) : (
                     <>
-                      <select name="constituency_id" value={form.constituency_id}
+                      <select name="federal_constituency_id" value={form.federal_constituency_id}
                         onChange={handle} required className={inputClass}>
-                        <option value="">Select your constituency</option>
-                        {constituencies.map((c) => (
+                        <option value="">Select your NA seat</option>
+                        {federalConstituencies.map((c) => (
                           <option key={c.id} value={c.id}>{c.name}</option>
                         ))}
                       </select>
-                      <p className="text-xs text-green-400 mt-1">{constituencies.length} constituencies in this city</p>
+                      <p className="text-xs text-green-400 mt-1">{federalConstituencies.length} federal seat(s) in this city</p>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {/* Provincial Constituency — shown once city is selected */}
+              {selectedCity && (
+                <div>
+                  <label className={labelClass}>
+                    Provincial Constituency <span className="text-gray-400 font-normal">(Provincial Assembly)</span>{" "}
+                    <span className="text-red-500">*</span>
+                  </label>
+                  {provincialConsLoading ? (
+                    <Spinner text="Loading provincial constituencies…" />
+                  ) : provincialConstituencies.length === 0 ? (
+                    <div className="px-4 py-3 rounded-xl border-2 border-orange-100 bg-orange-50 text-sm text-orange-600">
+                      No provincial constituencies found for this city.
+                    </div>
+                  ) : (
+                    <>
+                      <select name="provincial_constituency_id" value={form.provincial_constituency_id}
+                        onChange={handle} required className={inputClass}>
+                        <option value="">Select your provincial seat</option>
+                        {provincialConstituencies.map((c) => (
+                          <option key={c.id} value={c.id}>{c.name}</option>
+                        ))}
+                      </select>
+                      <p className="text-xs text-green-400 mt-1">{provincialConstituencies.length} provincial seat(s) in this city</p>
                     </>
                   )}
                 </div>
@@ -328,7 +348,7 @@ export default function SignupPage() {
               </div>
 
               <button type="button"
-                onClick={() => { setError(null); setStep(1); setSelectedProvince(""); setSelectedCity(""); setConstType(""); }}
+                onClick={() => { setError(null); setStep(1); setSelectedProvince(""); setSelectedCity(""); }}
                 className="w-full py-3 rounded-xl border-2 border-green-200 bg-white
                   text-green-800 font-semibold text-sm hover:border-green-600 hover:bg-green-50 transition-all">
                 ← Back
