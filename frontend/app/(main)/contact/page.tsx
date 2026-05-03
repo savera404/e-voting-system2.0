@@ -59,63 +59,11 @@ export default function ContactPage() {
       <div className="px-4 lg:px-8 py-10" style={{ background: BG, minHeight: "70vh" }}>
         <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-10 items-start">
 
-          {/* Left — form or success */}
-          <div>
-            {status === "sent" ? (
-              <TicketSuccessCard ticketRef={ticketRef} onReset={reset} />
-            ) : (
-              <div className="bg-white rounded-2xl border p-8 shadow-sm" style={{ borderColor: BORDER }}>
-                <h2 className="font-bold text-xl text-gray-900 mb-5" style={{ fontFamily: "Georgia, serif" }}>Submit a Support Ticket</h2>
-
-                <label className="block text-xs font-bold tracking-widest uppercase text-gray-400 mb-2">Topic</label>
-                <div className="grid grid-cols-2 gap-2 mb-5">
-                  {CONTACT_TOPICS.map((t) => (
-                    <button
-                      key={t}
-                      onClick={() => setTopic(t)}
-                      className="px-3 py-2 rounded-xl border text-xs font-semibold text-left transition-all"
-                      style={{ borderColor: topic === t ? G : BORDER, background: topic === t ? GL : "#fff", color: topic === t ? G : "#6b7280" }}
-                    >
-                      {t}
-                    </button>
-                  ))}
-                </div>
-
-                <label className="block text-xs font-bold tracking-widest uppercase text-gray-400 mb-2">Subject</label>
-                <input
-                  value={subject}
-                  onChange={(e) => setSubject(e.target.value)}
-                  placeholder="Brief description of your issue…"
-                  className="w-full px-4 py-3 rounded-xl border text-sm focus:outline-none mb-4 bg-gray-50"
-                  style={{ borderColor: BORDER }}
-                />
-
-                <label className="block text-xs font-bold tracking-widest uppercase text-gray-400 mb-2">Message</label>
-                <textarea
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  rows={5}
-                  placeholder="Describe your issue in detail…"
-                  className="w-full px-4 py-3 rounded-xl border text-sm focus:outline-none mb-5 bg-gray-50 resize-none"
-                  style={{ borderColor: BORDER }}
-                />
-
-                <button
-                  onClick={submit}
-                  disabled={!isValid || status === "sending"}
-                  className="w-full py-3.5 rounded-xl font-bold text-sm text-white flex items-center justify-center gap-2"
-                  style={{ background: isValid ? G : "#d1d5db" }}
-                >
-                  {status === "sending" ? "Submitting…" : "Submit Ticket →"}
-                </button>
-              </div>
-            )}
-          </div>
 
           {/* Right — channels */}
           <div className="flex flex-col gap-5">
             <div className="bg-white rounded-2xl border p-7 shadow-sm" style={{ borderColor: BORDER }}>
-              <h3 className="font-bold text-lg text-gray-900 mb-5" style={{ fontFamily: "Georgia, serif" }}>Other Ways to Reach Us</h3>
+              <h3 className="font-bold text-lg text-gray-900 mb-5" style={{ fontFamily: "Georgia, serif" }}>Ways to Reach Us</h3>
               {[
                 { icon: "📞", title: "Helpline",      value: "0800-PAKVOTE",              note: "Free · 24/7 · Mon–Sun"  },
                 { icon: "📧", title: "Email",          value: "support@pakvote.gov.pk",    note: "Response in 2–4 hours"  },
@@ -133,19 +81,6 @@ export default function ContactPage() {
               ))}
             </div>
 
-            <div className="rounded-2xl px-6 py-4 text-white" style={{ background: G }}>
-              <div className="flex items-center gap-2 mb-3">
-                <span className="w-2.5 h-2.5 rounded-full bg-green-400 animate-pulse inline-block" />
-                <span className="text-sm font-bold">All Systems Operational</span>
-              </div>
-              <p className="text-sm text-white/65 mb-4">PakVote platform is running normally.</p>
-              {[["Voting Portal","Operational"],["NADRA Verification","Operational"],["SMS OTP","Operational"],["Results Portal","Operational"]].map(([s,v])=>(
-                <div key={s} className="flex justify-between py-2 border-b border-white/10 text-xs last:border-0">
-                  <span className="text-white/60">{s}</span>
-                  <span className="font-semibold text-green-400">{v}</span>
-                </div>
-              ))}
-            </div>
           </div>
         </div>
       </div>

@@ -220,24 +220,6 @@ export default function VotingHistoryPage() {
               ))}
             </div>
 
-            <div className="bg-white rounded-2xl border p-5 shadow-sm" style={{ borderColor: BORDER }}>
-              <p className="text-xs font-bold tracking-widest uppercase text-gray-400 mb-3">Participation Badge</p>
-              <div className="text-center py-4">
-                <div className="w-16 h-16 rounded-full flex items-center justify-center text-3xl mx-auto mb-3" style={{ background: GL }}>
-                  {history.length >= 4 ? "🏅" : history.length >= 1 ? "🗳️" : "⭕"}
-                </div>
-                <p className="font-bold text-gray-900 text-sm">
-                  {history.length >= 4 ? "Active Voter" : history.length >= 1 ? "First Vote" : "Not Voted Yet"}
-                </p>
-                <p className="text-xs text-gray-400 mt-1">
-                  {history.length >= 4
-                    ? "Voted in 4+ elections"
-                    : history.length >= 1
-                    ? "Voted in your first election"
-                    : "Cast your first vote to earn a badge"}
-                </p>
-              </div>
-            </div>
           </div>
 
         </div>

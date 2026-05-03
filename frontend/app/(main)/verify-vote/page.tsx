@@ -190,7 +190,7 @@ function VerifyVoteContent() {
                 Every vote cast on PakVote is assigned a unique cryptographic receipt ID and stored in a tamper-proof encrypted ledger. You can verify your vote was counted without revealing your identity.
               </p>
               {[
-                ["01", "Vote is cast and encrypted end-to-end using AES-256"],
+                ["01", "Vote is cast and encrypted end-to-end using SHA-256"],
                 ["02", "A unique receipt ID is generated and tied to your encrypted record"],
                 ["03", "The encrypted record is committed to the secure ECP database"],
                 ["04", "You can verify at any time using your receipt ID"],

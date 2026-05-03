@@ -40,8 +40,19 @@ export default function ElectionSchedulePage() {
   const [expanded,  setExpanded]  = useState<number | null>(null);
 
   useEffect(() => {
-    listElections()
-      .then(setElections)
+    // Fetch active and upcoming in parallel, merge and sort by start_date
+    Promise.all([
+      listElections("active"),
+      listElections("upcoming"),
+    ])
+      .then(([active, upcoming]) => {
+        const merged = [...active, ...upcoming].sort((a, b) => {
+          if (!a.start_date) return 1;
+          if (!b.start_date) return -1;
+          return new Date(a.start_date).getTime() - new Date(b.start_date).getTime();
+        });
+        setElections(merged);
+      })
       .catch(() => setError("Could not load elections. Please try again later."))
       .finally(() => setLoading(false));
   }, []);
@@ -52,9 +63,8 @@ export default function ElectionSchedulePage() {
     ? elections
     : elections.filter(e => e.type === filter);
 
-  const activeCount    = elections.filter(e => e.status === "active").length;
-  const upcomingCount  = elections.filter(e => e.status === "upcoming").length;
-  const completedCount = elections.filter(e => e.status === "completed").length;
+  const activeCount   = elections.filter(e => e.status === "active").length;
+  const upcomingCount = elections.filter(e => e.status === "upcoming").length;
 
   return (
     <>
@@ -78,11 +88,10 @@ export default function ElectionSchedulePage() {
         <div className="max-w-7xl mx-auto">
 
           {/* Stats row */}
-          <div className="grid grid-cols-3 gap-4 mb-8">
+          <div className="grid grid-cols-2 gap-4 mb-8">
             {[
-              [activeCount,    "Active Now",  "#fef2f2", "#ef4444"],
-              [upcomingCount,  "Upcoming",    "#fffbeb", "#d97706"],
-              [completedCount, "Completed",   GL,        G       ],
+              [activeCount,   "Active Now", "#fef2f2", "#ef4444"],
+              [upcomingCount, "Upcoming",   "#fffbeb", "#d97706"],
             ].map(([v, l, bg, c]) => (
               <div key={String(l)} className="rounded-2xl border p-5 shadow-sm"
                 style={{ background: "#fff", borderColor: BORDER }}>

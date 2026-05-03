@@ -35,15 +35,6 @@ export default function HowItWorks() {
             <p className="text-lg text-gray-500 leading-relaxed mb-10">
               PakVote is designed to be as simple as possible. If you can use a mobile app, you can vote. No polling station queues. No lost ballots.
             </p>
-            <a
-              href="#register"
-              className="inline-flex items-center gap-2 bg-[#1a4731] text-white font-semibold px-7 py-3.5 rounded-xl hover:bg-[#15392a] transition-all shadow-md hover:shadow-lg"
-            >
-              Start Registration
-              <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24">
-                <path d="M5 12h14M12 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            </a>
           </div>
 
           {/* Right: Steps */}

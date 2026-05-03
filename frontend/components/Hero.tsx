@@ -11,11 +11,7 @@ export default function Hero() {
       </div>
 
       <div className="relative z-10 max-w-5xl mx-auto px-6 text-center">
-        {/* Badge */}
-        <div className="inline-flex items-center gap-2 bg-white/10 border border-white/20 backdrop-blur-sm text-white mt-5 text-sm px-4 py-1.5 rounded-full mb-10 animate-pulse-slow">
-          <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
-          National Elections 2026 Registration Open
-        </div>
+       
 
         {/* Headline */}
         <h1 className="text-5xl md:text-7xl lg:text-[70px] font-black text-white leading-[1.02] tracking-tight mb-8">
@@ -32,7 +28,7 @@ export default function Hero() {
         {/* CTAs */}
         <div className="flex flex-col sm:flex-row gap-4 justify-center">
           <a
-            href="/signup"
+            href="/login"
             className="inline-flex items-center justify-center gap-2 bg-white text-[#1a4731] font-bold text-base px-8 py-4 rounded-xl hover:bg-gray-100 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5 group"
           >
             Get Started

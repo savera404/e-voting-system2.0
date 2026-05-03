@@ -17,12 +17,14 @@ export function saveAuth(token: string, voterId: number, name: string) {
   localStorage.setItem("token", token);
   localStorage.setItem("voter_id", String(voterId));
   localStorage.setItem("voter_name", name);
+  window.dispatchEvent(new Event("auth-change"));
 }
 
 export function clearAuth() {
   localStorage.removeItem("token");
   localStorage.removeItem("voter_id");
   localStorage.removeItem("voter_name");
+  window.dispatchEvent(new Event("auth-change"));
 }
 
 export function isLoggedIn(): boolean {
@@ -64,12 +66,13 @@ export interface VoterResponse {
   name: string;
   cnic: string;
   email: string;
-  federal_constituency_id: number | null;
+  federal_constituency_id:    number | null;
   provincial_constituency_id: number | null;
-  has_voted: boolean;
-  has_voted_federal: boolean;
+  local_constituency_id:      number | null;
+  has_voted:            boolean;
+  has_voted_federal:    boolean;
   has_voted_provincial: boolean;
-  has_voted_local: boolean;
+  has_voted_local:      boolean;
   created_at: string | null;
 }
 

@@ -131,14 +131,24 @@ export default function Header() {
   const [voterName, setVoterName] = useState("");
   const user = isLoggedIn ? { name: voterName, verified: true } : null;
 
-  // Read real auth state from localStorage on mount
+  // Read auth state from localStorage on mount and whenever it changes
   useEffect(() => {
-    const token = localStorage.getItem("token");
-    const name  = localStorage.getItem("voter_name");
-    if (token) {
-      setIsLoggedIn(true);
-      setVoterName(name ?? "Voter");
-    }
+    const syncAuth = () => {
+      const token = localStorage.getItem("token");
+      const name  = localStorage.getItem("voter_name");
+      if (token) {
+        setIsLoggedIn(true);
+        setVoterName(name ?? "Voter");
+      } else {
+        setIsLoggedIn(false);
+        setVoterName("");
+      }
+    };
+
+    syncAuth(); // initial read
+
+    window.addEventListener("auth-change", syncAuth);
+    return () => window.removeEventListener("auth-change", syncAuth);
   }, []);
 
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -244,49 +254,6 @@ export default function Header() {
             {isLoggedIn && user ? (
               /* AUTHENTICATED */
               <>
-                {/* Notification Bell */}
-                <div className="relative">
-                  <button
-                    onClick={() => setNotifOpen(!notifOpen)}
-                    className="relative p-2 rounded-lg hover:bg-gray-100 transition-colors"
-                    aria-label="Notifications"
-                  >
-                    <svg width="20" height="20" fill="none" stroke="#374151" strokeWidth={2} viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-                    </svg>
-                    {unreadCount > 0 && (
-                      <span className="absolute top-1 right-1 w-4 h-4 bg-red-500 text-white text-[9px] font-bold rounded-full flex items-center justify-center">
-                        {unreadCount}
-                      </span>
-                    )}
-                  </button>
-
-                  {notifOpen && (
-                    <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-xl shadow-xl border border-gray-100 z-50 overflow-hidden">
-                      <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-                        <span className="text-sm font-semibold text-gray-900">Notifications</span>
-                        <span className="text-xs text-[#1a4731] font-medium cursor-pointer hover:underline">Mark all read</span>
-                      </div>
-                      <div className="divide-y divide-gray-50">
-                        {notifications.map((n) => (
-                          <div key={n.id} className={`px-4 py-3 flex gap-3 hover:bg-gray-50 transition-colors cursor-pointer ${n.unread ? "bg-[#1a4731]/3" : ""}`}>
-                            <div className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${n.unread ? "bg-[#1a4731]" : "bg-gray-200"}`} />
-                            <div>
-                              <p className="text-sm text-gray-700 leading-snug">{n.text}</p>
-                              <p className="text-xs text-gray-400 mt-0.5">{n.time}</p>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                      <div className="px-4 py-2.5 border-t border-gray-100 text-center">
-                        <Link href="/notifications" className="text-xs font-medium text-[#1a4731] hover:underline">
-                          View all notifications
-                        </Link>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
                 {/* User chip */}
                 <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 hover:border-[#1a4731]/30 transition-all cursor-pointer">
                   <div className="w-7 h-7 rounded-full bg-[#1a4731]/10 flex items-center justify-center">

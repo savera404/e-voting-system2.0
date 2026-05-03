@@ -25,20 +25,6 @@ export default function CTA() {
             <p className="text-lg text-gray-500 max-w-xl mx-auto mb-10">
               Registration takes less than 3 minutes. All you need is your CNIC and a smartphone.
             </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <a
-                href="/signup"
-                className="inline-flex items-center justify-center gap-2 bg-[#1a4731] text-white font-bold text-base px-9 py-4 rounded-xl hover:bg-[#15392a] transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5"
-              >
-                Register to Vote — Free
-              </a>
-              <a
-                href="/login"
-                className="inline-flex items-center justify-center gap-2 border border-gray-200 text-gray-700 font-semibold text-base px-9 py-4 rounded-xl hover:bg-gray-50 transition-all"
-              >
-                Login
-              </a>
-            </div>
             <p className="mt-6 text-xs text-gray-400">
               By registering, you agree to our Terms of Service and Privacy Policy. Your data is protected under PECA 2016.
             </p>
