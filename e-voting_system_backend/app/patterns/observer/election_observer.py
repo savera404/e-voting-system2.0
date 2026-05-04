@@ -60,21 +60,43 @@ class LoggingObserver(ElectionObserver):
 
 
 class AuditObserver(ElectionObserver):
-    """Maintains an in-memory audit trail (replace with DB writes in production)."""
-
-    def __init__(self) -> None:
-        self._trail: List[Dict] = []
+    """Maintains an audit trail in the database."""
 
     def update(self, event: ElectionEvent) -> None:
-        self._trail.append({
-            "election_id": event.election_id,
-            "event": f"status_change:{event.old_status}→{event.new_status}",
-            "at": event.occurred_at,
-        })
+        from app.core.database import SessionLocal
+        from app.models.audit_log import AuditLog
+        db = SessionLocal()
+        try:
+            log = AuditLog(
+                election_id=event.election_id,
+                event=f"status_change:{event.old_status}→{event.new_status}",
+                at=event.occurred_at
+            )
+            db.add(log)
+            db.commit()
+        except Exception as e:
+            print(f"Failed to save audit log: {e}")
+            db.rollback()
+        finally:
+            db.close()
 
     @property
     def trail(self) -> List[Dict]:
-        return list(self._trail)
+        from app.core.database import SessionLocal
+        from app.models.audit_log import AuditLog
+        db = SessionLocal()
+        try:
+            logs = db.query(AuditLog).all()
+            return [
+                {
+                    "election_id": log.election_id,
+                    "event": log.event,
+                    "at": log.at,
+                }
+                for log in logs
+            ]
+        finally:
+            db.close()
 
 
 # ── Event Manager (Subject) ────────────────────────────────────────────────
